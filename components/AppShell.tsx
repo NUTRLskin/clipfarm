@@ -1,5 +1,5 @@
 "use client";
-import {useState,useEffect} from "react";
+import {useState,useEffect,useRef} from "react";
 import {useSession,signOut} from "next-auth/react";
 import {useRouter,usePathname} from "next/navigation";
 
@@ -17,6 +17,10 @@ export default function AppShell({children}:{children:React.ReactNode}){
   const pathname=usePathname();
   const [mode,setMode]=useState<"clipper"|"creator">("clipper");
   const [hydrated,setHydrated]=useState(false);
+  // Synchronous source of truth for the most recent intended mode. Avoids a
+  // race between setMode() and router.push() where the route guard could
+  // see stale state and bounce the user back.
+  const modeRef=useRef<"clipper"|"creator">("clipper");
 
   useEffect(()=>{
     if(status!=="authenticated") return;
@@ -30,6 +34,7 @@ export default function AppShell({children}:{children:React.ReactNode}){
         if(stored==="clipper"||stored==="creator") resolved=stored;
       }catch{}
     }
+    modeRef.current=resolved;
     setMode(resolved);
     try{localStorage.setItem("cf-role",resolved);}catch{}
     setHydrated(true);
@@ -41,15 +46,18 @@ export default function AppShell({children}:{children:React.ReactNode}){
 
   useEffect(()=>{
     if(!hydrated||!pathname) return;
-    if(mode==="clipper"&&CREATOR_PATHS.has(pathname)){
+    // Use the ref so we never bounce off a stale closure value during a mode switch.
+    const current=modeRef.current;
+    if(current==="clipper"&&CREATOR_PATHS.has(pathname)){
       router.replace(homeFor("clipper"));
-    }else if(mode==="creator"&&CLIPPER_PATHS.has(pathname)){
+    }else if(current==="creator"&&CLIPPER_PATHS.has(pathname)){
       router.replace(homeFor("creator"));
     }
   },[mode,pathname,hydrated,router]);
 
   function switchMode(next:"clipper"|"creator"){
     if(next===mode) return;
+    modeRef.current=next;
     setMode(next);
     try{localStorage.setItem("cf-role",next);}catch{}
     router.push(homeFor(next));
