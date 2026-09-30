@@ -2,6 +2,14 @@
 
 Two-sided Twitch clip marketplace: streamers fund campaigns, clippers cut moments from the stream, post them to TikTok and get paid per view.
 
+## Clipper Studio: highlights
+
+Opening a VOD in the picker kicks off an `analyze` job (once per VOD, shared by all clippers). The worker
+never downloads the video: it reads the streamer's own Twitch clips for that broadcast (Helix, with
+`vod_offset`), samples chat-replay density every 60 s, streams the audio-only rendition for a loudness curve,
+and pulls ≤360 frames from the 160p rendition for a filmstrip. Signals are z-scored and merged into ranked
+"Top moments" (clips > chat > audio). Tapping a moment sets in/out; import still pulls only that range.
+
 ## Clipper Studio
 
 `/studio` is the in-app editor. A clipper picks a campaign, scrubs the streamer's VOD in the Twitch player, marks in/out, and only that range is pulled at full quality. The editor then gives them a vertical-video toolkit:

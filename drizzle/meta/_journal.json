@@ -15,6 +15,13 @@
       "when": 1790807083066,
       "tag": "0001_any_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790807649357,
+      "tag": "0002_auto_clips",
+      "breakpoints": true
     }
   ]
 }

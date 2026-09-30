@@ -153,6 +153,8 @@ export type AudioItem = ItemBase & {
   volume: number;
   fadeIn: number;
   fadeOut: number;
+  /** Auto-duck: drop under speech from the video tracks (applied on export via sidechain compression). */
+  duck?: boolean;
 };
 
 export type VisualItem = VideoItem | ImageItem | TextItem | CaptionItem | StickerItem;

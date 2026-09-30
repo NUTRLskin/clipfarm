@@ -73,6 +73,32 @@ export async function getVod(vodId: string): Promise<VodInfo | null> {
   }
 }
 
+export type TwitchClip = { id: string; title: string; url: string; viewCount: number; createdAt: string; duration: number; vodOffset: number; thumbnail: string | null };
+
+/**
+ * Clips viewers made from this VOD, with their offset into the broadcast — the strongest
+ * "this was a moment" signal there is. Pages through Helix clips for the broadcast window.
+ */
+export async function listClipsForVod(vodId: string, broadcasterLogin: string, startedAt: string, durationSec: number, maxPages = 6): Promise<TwitchClip[]> {
+  if (!twitchConfigured()) return [];
+  const u = await helix(`users?login=${encodeURIComponent(broadcasterLogin.toLowerCase())}`);
+  const id = u.data?.[0]?.id;
+  if (!id) return [];
+  const start = new Date(startedAt), end = new Date(start.getTime() + (durationSec + 3600) * 1000);
+  const out: TwitchClip[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const r = await helix(`clips?broadcaster_id=${id}&started_at=${start.toISOString()}&ended_at=${end.toISOString()}&first=100${cursor ? `&after=${cursor}` : ""}`);
+    for (const c of r.data || []) {
+      if (String(c.video_id) !== String(vodId) || c.vod_offset == null) continue;
+      out.push({ id: c.id, title: c.title, url: c.url, viewCount: c.view_count || 0, createdAt: c.created_at, duration: Number(c.duration) || 30, vodOffset: Number(c.vod_offset), thumbnail: c.thumbnail_url || null });
+    }
+    cursor = r.pagination?.cursor;
+    if (!cursor) break;
+  }
+  return out;
+}
+
 const mapChannel = (x: any): ChannelInfo => ({
   id: x.id, login: x.broadcaster_login || x.login, display: x.display_name, avatar: x.thumbnail_url || x.profile_image_url || null,
   live: !!x.is_live, game: x.game_name || undefined, title: x.title || undefined,

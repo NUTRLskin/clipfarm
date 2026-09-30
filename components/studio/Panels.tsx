@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useEditor, type Panel } from "@/lib/editor/store";
-import { buildCaptions, newId, totalDuration, fmtTime } from "@/lib/editor/timeline";
+import { buildCaptions, newId, totalDuration, fmtTime, removeSilences } from "@/lib/editor/timeline";
 import { CAPTION_PRESETS, EFFECTS, EMOJIS, FULL_CROP, LAYOUTS, TEXT_PRESETS, TRANSITIONS, captionStyle, defaultFilter, defaultTextStyle, defaultTransform, layoutItems, DEFAULT_FACE_RECT, CANVAS_W, CANVAS_H, FILTER_PRESETS, applyFilterPreset } from "@/lib/editor/presets";
 import type { AssetView, JobView } from "@/lib/studio";
 import type { VideoItem, CaptionItem, Item } from "@/lib/editor/types";
@@ -203,11 +203,53 @@ function CaptionsPanel({ refresh }: { refresh: () => Promise<void> }) {
   const [y, setY] = useState(1400);
   const [words, setWords] = useState(3);
   const [busy, setBusy] = useState(false);
+  const [gap, setGap] = useState(0.8);
+  const [tightened, setTightened] = useState<number | null>(null);
   const clips = tl.tracks.filter(t => t.kind === "video").flatMap(t => t.items.filter(i => i.type === "video") as VideoItem[]);
   const srcIds = [...new Set(clips.map(c => c.assetId))];
   const missing = srcIds.filter(id => assets[id] && !assets[id].hasTranscript);
   const transcribing = jobs.filter(j => j.type === "transcribe" && (j.status === "queued" || j.status === "running"));
   const existing = tl.tracks.filter(t => t.kind === "caption").reduce((n, t) => n + t.items.length, 0);
+
+  async function ensureTranscripts(): Promise<Record<string, any[]>> {
+    for (const id of missing) await api(`/api/projects/${projectId}/transcribe`, { method: "POST", body: JSON.stringify({ assetId: id }) });
+    const deadline = Date.now() + 10 * 60_000;
+    while (Date.now() < deadline) {
+      await refresh();
+      const st = useEditor.getState();
+      const failed = st.jobs.find(j => j.type === "transcribe" && j.status === "failed" && Date.now() - new Date(j.createdAt).getTime() < 60_000);
+      if (failed) throw new Error(failed.error || "Transcription failed");
+      if (srcIds.every(id => st.assets[id]?.hasTranscript)) break;
+      await new Promise(r => setTimeout(r, 2500));
+    }
+    const transcripts: Record<string, any[]> = {};
+    for (const id of srcIds) transcripts[id] = (await api(`/api/projects/${projectId}/assets/${id}`)).transcript || [];
+    return transcripts;
+  }
+
+  /** CapCut-style "remove silences": cut pauses longer than `gap` out of every clip, then rebuild captions if there were any. */
+  async function tighten() {
+    setBusy(true); setTightened(null);
+    try {
+      const transcripts = await ensureTranscripts();
+      const st = useEditor.getState();
+      const { tl: next, removed } = removeSilences(st.timeline, transcripts, { minGap: gap, pad: 0.12 });
+      if (removed <= 0) { setTightened(0); return; }
+      const hadCaptions = existing > 0;
+      commit(() => {
+        if (hadCaptions) for (const tr of next.tracks) if (tr.kind === "caption") tr.items = [];
+        return next;
+      });
+      if (hadCaptions) {
+        const st2 = useEditor.getState();
+        const clips2 = st2.timeline.tracks.filter(t => t.kind === "video").flatMap(t => t.items.filter(i => i.type === "video") as VideoItem[]);
+        const items = buildCaptions(clips2, transcripts, captionStyle(preset, { wordsPerChunk: words }), { transform: defaultTransform(CANVAS_W / 2, y) });
+        commit(t => { const track = t.tracks.find(tr => tr.kind === "caption"); if (track) track.items = items; }, { merge: true });
+      }
+      setTightened(removed);
+    } catch (e: any) { setError(e.message); }
+    finally { setBusy(false); }
+  }
 
   async function generate() {
     setBusy(true);
@@ -261,6 +303,16 @@ function CaptionsPanel({ refresh }: { refresh: () => Promise<void> }) {
         <button className="st-btn" onClick={() => commit(t => { for (const tr of t.tracks) if (tr.kind === "caption") tr.items = []; })}>Clear captions</button>
         <button className="st-btn" onClick={() => commit(t => { for (const tr of t.tracks) for (const i of tr.items) if (i.type === "caption") i.transform.y = y; })}>Move all to position</button>
       </div>}
+      <Section title="Remove silences" right={<span className="st-hint">tighten pacing</span>}>
+        <Row label="Pauses over"><Slider value={gap} min={0.3} max={2.5} step={0.1} onChange={setGap} format={v => `${v.toFixed(1)}s`} /></Row>
+        <button className="st-btn" style={{ width: "100%" }} disabled={busy || !clips.length || transcribing.length > 0} onClick={tighten}>
+          {busy ? <><Spinner /> Working…</> : "✂ Cut dead air"}
+        </button>
+        <div className="st-hint" style={{ marginTop: 6 }}>
+          {tightened == null ? "Cuts every pause longer than the threshold out of your clips and closes the gaps. Captions are rebuilt automatically."
+            : tightened === 0 ? "No pauses that long — nothing to cut." : `Removed ${tightened}s of dead air. Undo with ⌘Z if it's too tight.`}
+        </div>
+      </Section>
       <Section title="Manual caption">
         <button className="st-btn" onClick={() => {
           const st = useEditor.getState();

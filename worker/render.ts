@@ -89,9 +89,12 @@ const atempo = (s: number) => {
   return out;
 };
 
-async function mixAudio(tl: Timeline, files: Record<string, string>, info: Record<string, AssetInfo>, total: number, out: string) {
+export async function mixAudio(tl: Timeline, files: Record<string, string>, info: Record<string, AssetInfo>, total: number, out: string) {
   const inputs: string[] = [];
   const chains: string[] = [];
+  const voice: string[] = [];   // labels of video-clip audio (the "speech" bus)
+  const music: string[] = [];   // labels of audio-track items that don't duck
+  const ducked: string[] = [];  // labels of audio-track items that duck under the voice bus
   let n = 0;
   for (const tr of tl.tracks) {
     if (tr.muted) continue;
@@ -108,7 +111,13 @@ async function mixAudio(tl: Timeline, files: Record<string, string>, info: Recor
       if (c.fadeIn > 0) f.push(`afade=t=in:st=0:d=${c.fadeIn}`);
       if (c.fadeOut > 0) f.push(`afade=t=out:st=${Math.max(0, c.duration - c.fadeOut).toFixed(3)}:d=${c.fadeOut}`);
       if (ms > 0) f.push(`adelay=${ms}|${ms}`);
+      // Pad every stem to the full length so amix/sidechain inputs line up.
+      f.push(`apad=whole_dur=${total.toFixed(3)}`, `atrim=duration=${total.toFixed(3)}`);
       chains.push(`[${n}:a]${f.join(",")}[a${n}]`);
+      const label = `[a${n}]`;
+      if (it.type === "video") voice.push(label);
+      else if ((it as AudioItem).duck) ducked.push(label);
+      else music.push(label);
       n++;
     }
   }
@@ -116,7 +125,26 @@ async function mixAudio(tl: Timeline, files: Record<string, string>, info: Recor
     await run("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", total.toFixed(3), "-c:a", "aac", out]);
     return;
   }
-  const mix = `${Array.from({ length: n }, (_, k) => `[a${k}]`).join("")}amix=inputs=${n}:normalize=0:dropout_transition=0,apad,atrim=duration=${total.toFixed(3)},alimiter=limit=0.95[out]`;
+
+  const finalInputs: string[] = [];
+  if (ducked.length && voice.length) {
+    // Voice bus → one copy to the mix, one sidechain copy per ducked track.
+    const vb = voice.length > 1 ? (chains.push(`${voice.join("")}amix=inputs=${voice.length}:normalize=0:dropout_transition=0[voice]`), "[voice]") : voice[0];
+    const scs = ducked.map((_, k) => `[sc${k}]`);
+    chains.push(`${vb}asplit=${ducked.length + 1}[voiceout]${scs.join("")}`);
+    finalInputs.push("[voiceout]");
+    ducked.forEach((d, k) => {
+      // Roughly -10 to -14 dB under speech; 20 ms attack, 400 ms release keeps it musical.
+      chains.push(`${d}${scs[k]}sidechaincompress=threshold=0.015:ratio=6:attack=20:release=400:knee=2:makeup=1:level_sc=1[dk${k}]`);
+      finalInputs.push(`[dk${k}]`);
+    });
+    finalInputs.push(...music);
+  } else {
+    finalInputs.push(...voice, ...music, ...ducked);
+  }
+  const mix = finalInputs.length > 1
+    ? `${finalInputs.join("")}amix=inputs=${finalInputs.length}:normalize=0:dropout_transition=0,atrim=duration=${total.toFixed(3)},alimiter=limit=0.95[out]`
+    : `${finalInputs[0]}atrim=duration=${total.toFixed(3)},alimiter=limit=0.95[out]`;
   await run("ffmpeg", ["-y", ...inputs, "-filter_complex", [...chains, mix].join(";"), "-map", "[out]", "-c:a", "aac", "-b:a", "192k", out]);
 }
 

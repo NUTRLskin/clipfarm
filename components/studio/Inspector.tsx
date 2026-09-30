@@ -75,6 +75,8 @@ export default function Inspector() {
           <Row label="Speed"><Slider value={item.speed} min={0.25} max={4} step={0.05} onChange={v => up({ speed: v, duration: item.duration * item.speed / v } as any)} format={v => `${v.toFixed(2)}×`} /></Row>
           <Row label="Fade in"><Slider value={item.fadeIn} min={0} max={5} step={0.1} onChange={v => up({ fadeIn: v } as any)} format={v => `${v.toFixed(1)}s`} /></Row>
           <Row label="Fade out"><Slider value={item.fadeOut} min={0} max={5} step={0.1} onChange={v => up({ fadeOut: v } as any)} format={v => `${v.toFixed(1)}s`} /></Row>
+          <Row label="Auto-duck"><Toggle value={!!item.duck} onChange={v => up({ duck: v } as any, false)} label="Drop under speech" /></Row>
+          {item.duck && <div className="st-hint">Music dips whenever someone talks in the video clips (applied on export).</div>}
         </Section>
       )}
 

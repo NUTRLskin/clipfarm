@@ -3,7 +3,7 @@ import { createId } from "../id";
 
 export const assetKind = pgEnum("asset_kind", ["vod", "video", "image", "audio", "export"]);
 export const assetStatus = pgEnum("asset_status", ["pending", "processing", "ready", "failed"]);
-export const jobType = pgEnum("job_type", ["ingest", "probe", "transcribe", "render"]);
+export const jobType = pgEnum("job_type", ["ingest", "probe", "transcribe", "render", "analyze"]);
 export const jobStatus = pgEnum("job_status", ["queued", "running", "done", "failed"]);
 
 /** A clipper's editing project — one TikTok video. */
@@ -51,7 +51,8 @@ export const assets = pgTable("assets", {
 
 export const jobs = pgTable("jobs", {
   id: text("id").primaryKey().$defaultFn(createId),
-  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  /** Null for jobs that aren't tied to a project (VOD analysis is shared across clippers). */
+  projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
   type: jobType("type").notNull(),
   status: jobStatus("status").notNull().default("queued"),
   progress: real("progress").notNull().default(0),
@@ -61,9 +62,36 @@ export const jobs = pgTable("jobs", {
   attempts: integer("attempts").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   startedAt: timestamp("started_at", { withTimezone: true }),
+  /** Bumped by the worker while a job runs; stale-job requeue keys off this, not started_at. */
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 }, t => [index("jobs_queue_idx").on(t.status, t.createdAt)]);
+
+/**
+ * Highlight analysis of one Twitch VOD — filmstrip, loudness curve and ranked "moments" from
+ * Twitch clips, chat velocity and audio spikes. Keyed by VOD id and shared by every clipper.
+ */
+export const vodAnalyses = pgTable("vod_analyses", {
+  vodId: text("vod_id").primaryKey(),
+  channelLogin: text("channel_login"),
+  title: text("title"),
+  status: assetStatus("status").notNull().default("pending"),
+  progress: real("progress").notNull().default(0),
+  duration: real("duration"),
+  /** Sprite sheet across the whole VOD + per-second loudness curve. */
+  thumbsKey: text("thumbs_key"),
+  waveKey: text("wave_key"),
+  /** { thumbs: {cols,rows,interval,tw,th,count}, signals: {clips,chat,audio}: boolean } */
+  meta: jsonb("meta").notNull().default({}),
+  /** Moment[] — see lib/moments.ts */
+  moments: jsonb("moments").notNull().default([]),
+  error: text("error"),
+  requestedBy: text("requested_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export type Project = typeof projects.$inferSelect;
 export type AssetRow = typeof assets.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
+export type VodAnalysisRow = typeof vodAnalyses.$inferSelect;

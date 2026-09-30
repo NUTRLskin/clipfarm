@@ -162,6 +162,58 @@ export function ripple(track: Track): Track {
 // ── Captions ────────────────────────────────────────────────────────────────
 export type TranscriptWord = { text: string; start: number; end: number }; // source seconds
 
+/** Merge transcript words into speech segments (source seconds), padded and gap-tolerant. */
+export function speechSegments(words: TranscriptWord[], minGap: number, pad: number): { start: number; end: number }[] {
+  const ws = [...words].sort((a, b) => a.start - b.start);
+  const segs: { start: number; end: number }[] = [];
+  for (const w of ws) {
+    const last = segs[segs.length - 1];
+    if (last && w.start - last.end < minGap) last.end = Math.max(last.end, w.end);
+    else segs.push({ start: w.start, end: w.end });
+  }
+  return segs.map(s => ({ start: Math.max(0, s.start - pad), end: s.end + pad }));
+}
+
+/**
+ * Cut dead air out of every video clip that has a transcript: each clip becomes one clip per
+ * speech segment, and the track ripples closed. Clips whose source range has no words are left
+ * alone (silence there is a choice, not a pause). Keyframes are dropped on cut clips; captions
+ * must be regenerated afterwards. Returns the seconds removed.
+ */
+export function removeSilences(tl: Timeline, transcripts: Record<string, TranscriptWord[]>, opts: { minGap: number; pad: number; minKeep?: number }): { tl: Timeline; removed: number } {
+  const minKeep = opts.minKeep ?? 0.4;
+  const segCache: Record<string, { start: number; end: number }[]> = {};
+  const segsFor = (assetId: string) => segCache[assetId] ??= speechSegments(transcripts[assetId] || [], opts.minGap, opts.pad);
+  let removed = 0;
+  const tracks = tl.tracks.map(tr => {
+    if (tr.kind !== "video" && tr.kind !== "overlay") return tr;
+    let cut = false;
+    const items: Item[] = [];
+    for (const it of tr.items) {
+      if (it.type !== "video" || !transcripts[it.assetId]?.length) { items.push(it); continue; }
+      const src0 = it.in, src1 = it.in + it.duration * it.speed;
+      const keep = segsFor(it.assetId).map(s => ({ start: Math.max(src0, s.start), end: Math.min(src1, s.end) })).filter(s => s.end - s.start >= minKeep);
+      if (!keep.length || (keep.length === 1 && keep[0].start <= src0 + 0.05 && keep[0].end >= src1 - 0.05)) { items.push(it); continue; }
+      cut = true;
+      let t = it.start;
+      keep.forEach((s, k) => {
+        const dur = (s.end - s.start) / it.speed;
+        const piece: any = { ...it, id: k === 0 ? it.id : newId("v"), start: t, duration: dur, in: s.start, keyframes: undefined };
+        if (k > 0) { piece.transition = undefined; piece.animIn = undefined; piece.fadeIn = 0; }
+        if (k < keep.length - 1) { piece.animOut = undefined; piece.fadeOut = 0; }
+        items.push(piece); t += dur;
+      });
+      removed += it.duration - (t - it.start);
+    }
+    if (!cut) return tr;
+    // Ripple closed, keeping the track's original first-clip start (overlay tracks needn't begin at 0).
+    const sorted = [...items].sort((a, b) => a.start - b.start);
+    let t = sorted[0]?.start ?? 0;
+    return { ...tr, items: sorted.map(i => { const n = { ...i, start: t }; t += i.duration; return n; }) };
+  });
+  return { tl: { ...tl, tracks }, removed: Math.round(removed * 10) / 10 };
+}
+
 /**
  * Map a source transcript through the clips on a video track onto the timeline and
  * chunk it into caption items.
