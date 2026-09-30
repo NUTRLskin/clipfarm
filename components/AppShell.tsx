@@ -3,10 +3,10 @@ import {useState,useEffect,useRef} from "react";
 import {useSession,signOut} from "next-auth/react";
 import {useRouter,usePathname} from "next/navigation";
 
-const CLIPPER_NAV=[{href:"/dashboard",label:"Home",icon:"⌸"},{href:"/campaigns",label:"Campaigns",icon:"▶"},{href:"/my-clips",label:"Clips",icon:"✂"},{href:"/earnings",label:"Earnings",icon:"$"}];
+const CLIPPER_NAV=[{href:"/dashboard",label:"Home",icon:"⌸"},{href:"/campaigns",label:"Campaigns",icon:"▶"},{href:"/studio",label:"Studio",icon:"✂"},{href:"/my-clips",label:"Clips",icon:"▤"},{href:"/earnings",label:"Earnings",icon:"$"}];
 const CREATOR_NAV=[{href:"/my-campaigns",label:"Campaigns",icon:"▶"},{href:"/review",label:"Review",icon:"✓"},{href:"/analytics",label:"Analytics",icon:"↗"}];
 
-const CLIPPER_PATHS=new Set(["/dashboard","/campaigns","/my-clips","/earnings"]);
+const CLIPPER_PATHS=new Set(["/dashboard","/campaigns","/studio","/my-clips","/earnings"]);
 const CREATOR_PATHS=new Set(["/my-campaigns","/review","/analytics"]);
 
 function homeFor(mode:"clipper"|"creator"){return mode==="clipper"?"/dashboard":"/my-campaigns";}

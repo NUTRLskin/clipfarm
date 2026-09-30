@@ -1,8 +1,10 @@
 "use client";
 import {Avatar,Badge,Btn,ProgressBar,fmtViews,fmtMoney,pct} from "./ui";
+import {useRouter} from "next/navigation";
 import type {Campaign} from "@/lib/mockData";
 export default function CampaignCard({campaign,isCreator,onSubmit,onManage}:{campaign:Campaign;isCreator?:boolean;onSubmit?:(c:Campaign)=>void;onManage?:(c:Campaign)=>void}){
   const p=pct(campaign.deliveredViews,campaign.targetViews);
+  const router=useRouter();
   return(<div style={{background:"var(--bg2)",borderRadius:14,border:"1px solid var(--border)",overflow:"hidden"}}>
     <div style={{padding:"14px 14px 12px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
       <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
@@ -19,6 +21,7 @@ export default function CampaignCard({campaign,isCreator,onSubmit,onManage}:{cam
       <ProgressBar value={p}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text2)",marginBottom:14}}><span>{campaign.clipsAccepted} clips</span><span>{fmtMoney(campaign.budgetUsed)} spent</span></div>
       <div style={{display:"flex",gap:8}}>
+        {!isCreator&&<Btn full onClick={()=>router.push("/studio")} disabled={campaign.status!=="open"}>✂ Make a clip</Btn>}
         {!isCreator&&<Btn full primary onClick={()=>onSubmit?.(campaign)} disabled={campaign.status!=="open"}>Submit clip</Btn>}
         {isCreator&&<Btn full primary onClick={()=>onManage?.(campaign)}>Manage</Btn>}
       </div>
