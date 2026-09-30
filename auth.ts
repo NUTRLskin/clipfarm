@@ -16,7 +16,9 @@ if (twitchConfigured) {
   }));
 }
 
-// Clippers sign in with TikTok. video.list lets us read view counts on their own videos.
+// Clippers sign in with TikTok. video.list lets us read view counts on their own videos;
+// video.upload lets Clipper Studio push exports to their TikTok drafts (Content Posting API).
+// Scopes are configurable so a TikTok app without Content Posting approved can still log in.
 if (tiktokConfigured()) {
   const base = TikTok({
     clientId: process.env.TIKTOK_CLIENT_KEY,
@@ -26,7 +28,7 @@ if (tiktokConfigured()) {
     ...base,
     authorization: {
       ...base.authorization,
-      params: { ...base.authorization.params, scope: "user.info.basic,video.list" },
+      params: { ...base.authorization.params, scope: process.env.TIKTOK_SCOPES || "user.info.basic,video.list,video.upload" },
     },
   });
 }
