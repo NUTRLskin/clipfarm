@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { campaigns } from "@/lib/mockData";
 import { getOwnedProject, projectState, requireUser, route, HttpError } from "@/lib/studio";
 import { removeObject } from "@/lib/storage";
+import { validateTimeline } from "@/lib/editor/validate";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -27,8 +28,8 @@ export const PATCH = route(async (req: Request, { params }: Ctx) => {
   if (body.title != null) patch.title = String(body.title).slice(0, 120);
   if (body.timeline != null) {
     const tl = body.timeline;
-    if (!tl || !Array.isArray(tl.tracks) || !tl.canvas) throw new HttpError(400, "Invalid timeline");
     if (JSON.stringify(tl).length > 2_000_000) throw new HttpError(413, "Timeline too large");
+    try { validateTimeline(tl); } catch (e: any) { throw new HttpError(400, e.message); }
     patch.timeline = tl;
   }
   await getDb().update(schema.projects).set(patch).where(eq(schema.projects.id, p.id));

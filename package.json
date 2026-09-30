@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "tsx scripts/migrate.ts && next start",
     "lint": "next lint",
-    "worker": "tsx scripts/migrate.ts && tsx worker/index.ts",
+    "worker": "tsx worker/index.ts",
     "migrate": "tsx scripts/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit"

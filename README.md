@@ -43,7 +43,7 @@ Without Twitch/TikTok OAuth keys the login page offers demo accounts. Without R2
 
 ### Deploying on Railway
 
-1. **Postgres** plugin → `DATABASE_URL` on both services. Migrations run automatically on start.
+1. **Postgres** plugin → `DATABASE_URL` on both services. Migrations run automatically when the **web** service starts (the worker does not migrate).
 2. **Web** service: builds from `railway.toml` (nixpacks). Set `AUTH_SECRET`, `NEXTAUTH_URL`, Twitch/TikTok keys, R2 keys, `OPENAI_API_KEY`.
 3. **Worker** service from the same repo: set `RAILWAY_DOCKERFILE_PATH=Dockerfile.worker` plus the same `DATABASE_URL`, R2 and `OPENAI_API_KEY` vars. Give it 2+ vCPU / 4 GB — renders are CPU-bound. Scale replicas for throughput; the queue is safe with many workers.
 4. **R2 bucket**: no public access needed (all URLs are presigned). Add a CORS rule allowing `PUT` and `GET` from the web origin so browser uploads work.

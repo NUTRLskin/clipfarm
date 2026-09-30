@@ -6,12 +6,13 @@ import { referencedAssets } from "@/lib/editor/compositor";
 import { totalDuration } from "@/lib/editor/timeline";
 import { assetsByIds, getOwnedProject, jobView, requireUser, route, HttpError } from "@/lib/studio";
 import type { Timeline } from "@/lib/editor/types";
+import { validateTimeline } from "@/lib/editor/validate";
 
 export const POST = route(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireUser();
   const p = await getOwnedProject((await params).id, user.id);
   const { timeline } = await req.json() as { timeline: Timeline };
-  if (!timeline?.tracks) throw new HttpError(400, "Invalid timeline");
+  try { validateTimeline(timeline); } catch (e: any) { throw new HttpError(400, e.message); }
   const dur = totalDuration(timeline);
   if (dur < 1) throw new HttpError(400, "Add a clip to the timeline first");
   if (dur > 600) throw new HttpError(400, "Exports are limited to 10 minutes");

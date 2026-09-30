@@ -80,6 +80,9 @@ class Decoder {
 
 const atempo = (s: number) => {
   const out: string[] = [];
+  // Defence in depth: the API validates speed, but a 0/NaN here would loop forever.
+  if (!Number.isFinite(s) || s <= 0) throw new Error(`invalid clip speed ${s}`);
+  s = Math.min(8, Math.max(0.1, s));
   while (s > 2) { out.push("atempo=2"); s /= 2; }
   while (s < 0.5) { out.push("atempo=0.5"); s /= 0.5; }
   if (Math.abs(s - 1) > 1e-3) out.push(`atempo=${s.toFixed(4)}`);
