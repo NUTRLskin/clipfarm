@@ -5,11 +5,12 @@ import { useState, useEffect } from "react";
 export default function LoginPage() {
   const [loading, setLoading] = useState<null | "creator" | "clipper">(null);
   const [twitchAvailable, setTwitchAvailable] = useState(true);
+  const [tiktokAvailable, setTiktokAvailable] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/providers")
       .then((r) => r.json())
-      .then((providers) => setTwitchAvailable(!!providers.twitch))
+      .then((providers) => { setTwitchAvailable(!!providers.twitch); setTiktokAvailable(!!providers.tiktok); })
       .catch(() => setTwitchAvailable(false));
   }, []);
 
@@ -26,7 +27,7 @@ export default function LoginPage() {
   async function loginClipper() {
     setLoading("clipper");
     try { localStorage.setItem("cf-role", "clipper"); } catch {}
-    await signIn("clipper-demo", { callbackUrl: "/dashboard" });
+    await signIn(tiktokAvailable ? "tiktok" : "clipper-demo", { callbackUrl: "/dashboard" });
   }
 
   return (
@@ -48,11 +49,12 @@ export default function LoginPage() {
           <div style={{fontSize:11,color:"#6b6b7a",marginBottom:18,lineHeight:1.5}}>Run campaigns, review submissions, track payouts.</div>
 
           <button onClick={loginClipper} disabled={loading!==null} style={{width:"100%",padding:"16px 18px",background:"#1f1f23",color:"#efeff1",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,fontSize:15,fontWeight:600,cursor:loading!==null?"not-allowed":"pointer",opacity:loading==="clipper"?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:12,fontFamily:"inherit"}}>
-            <span style={{fontSize:18,lineHeight:1}}>✂</span>
-            {loading==="clipper" ? "Connecting..." : "I'm a Clipper (Demo)"}
+            {tiktokAvailable
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+              : <span style={{fontSize:18,lineHeight:1}}>✂</span>}
+            {loading==="clipper" ? "Connecting..." : tiktokAvailable ? "I'm a Clipper — Continue with TikTok" : "I'm a Clipper (Demo)"}
           </button>
           <div style={{fontSize:11,color:"#6b6b7a",marginBottom:6,lineHeight:1.5}}>Browse campaigns, clip from Twitch, post to TikTok, get paid.</div>
-          <div style={{fontSize:11,color:"#6b6b7a",lineHeight:1.5,fontStyle:"italic"}}>TikTok login coming soon.</div>
 
           <div style={{marginTop:22,fontSize:11,color:"#6b6b7a"}}>By continuing you agree to our Terms of Service</div>
         </div>
