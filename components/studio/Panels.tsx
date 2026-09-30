@@ -37,6 +37,20 @@ export function PanelBody({ panel, refresh }: { panel: Panel; refresh: () => Pro
 }
 
 // ── Media ────────────────────────────────────────────────────────────────────
+/** Opens (or reuses) the clipper's inbox thread with this project's streamer. */
+function MessageStreamer({ login, name }: { login: string; name: string }) {
+  const projectId = useEditor(s => s.projectId);
+  const setError = useEditor(s => s.setError);
+  const [busy, setBusy] = useState(false);
+  return (
+    <button className="st-btn" disabled={busy} onClick={async () => {
+      setBusy(true);
+      try { const t = await api("/api/inbox", { method: "POST", body: JSON.stringify({ streamerLogin: login, projectId }) }); window.location.href = `/inbox?thread=${t.id}`; }
+      catch (e: any) { setError(e.message); setBusy(false); }
+    }} title={`Message ${name} in your ClipFarm inbox`}>✉ Message {name}</button>
+  );
+}
+
 function useUpload(refresh: () => Promise<void>) {
   const projectId = useEditor(s => s.projectId);
   const setError = useEditor(s => s.setError);
@@ -94,6 +108,7 @@ function MediaPanel({ refresh }: { refresh: () => Promise<void> }) {
     <div>
       <div className="st-btn-row">
         <button className="st-btn primary" onClick={() => setShowVod(true)} disabled={!channel && !campaign}>＋ From {channel?.display || campaign?.streamer || "VOD"}&apos;s VODs</button>
+        {(channel || campaign) && <MessageStreamer login={channel?.login || campaign!.twitchUser} name={channel?.display || campaign!.streamer} />}
         <button className="st-btn" onClick={() => fileRef.current?.click()}>Upload</button>
         <input ref={fileRef} type="file" hidden accept="video/*,image/*,audio/*" multiple onChange={async e => { for (const f of Array.from(e.target.files || [])) await upload(f); e.target.value = ""; }} />
       </div>

@@ -2,6 +2,17 @@
 
 Two-sided Twitch clip marketplace: streamers fund campaigns, clippers cut moments from the stream, post them to TikTok and get paid per view.
 
+## Streamer side
+
+Streamers sign in with Twitch; the session records their channel login, which keys everything below.
+- **My VODs** (`/vods`) — kept broadcasts with clip-import counts; open one for the player, filmstrip and the
+  same Top moments clippers see.
+- **Clippers** (`/clippers`) — everyone who has pulled from the channel in Studio (projects, imports, exports,
+  submitted clips, views), plus which VODs are hottest.
+- **Inbox** (`/inbox`, both roles) — Postgres-backed threads, one per (streamer channel, clipper). Clippers open
+  a thread from a Studio project ("✉ Message …"); a streamer sees it on sign-in even if they'd never used
+  ClipFarm before. Unread counts show in the nav.
+
 ## Clipper Studio: highlights
 
 Opening a VOD in the picker kicks off an `analyze` job (once per VOD, shared by all clippers). The worker

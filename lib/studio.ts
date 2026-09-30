@@ -22,7 +22,15 @@ export function route<T extends any[]>(fn: (...args: T) => Promise<Response>) {
 export async function requireUser() {
   const session: any = await auth();
   if (!session?.user?.id) throw new HttpError(401, "Sign in first");
-  return session.user as { id: string; name?: string; role?: string };
+  return session.user as SessionUser;
+}
+export type SessionUser = { id: string; name?: string; role?: string; twitchLogin?: string; twitchAvatar?: string | null; tiktokConnected?: boolean };
+
+/** Streamer routes: must be signed in with Twitch (or the demo creator) so we know the channel. */
+export async function requireStreamer() {
+  const u = await requireUser();
+  if (!u.twitchLogin) throw new HttpError(403, "Sign in with Twitch to use the streamer dashboard");
+  return u as SessionUser & { twitchLogin: string };
 }
 
 export async function getOwnedProject(id: string, userId: string): Promise<Project> {

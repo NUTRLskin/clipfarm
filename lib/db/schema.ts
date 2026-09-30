@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, text, timestamp, jsonb, real, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, timestamp, jsonb, real, integer, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createId } from "../id";
 
 export const assetKind = pgEnum("asset_kind", ["vod", "video", "image", "audio", "export"]);
@@ -91,7 +91,45 @@ export const vodAnalyses = pgTable("vod_analyses", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Inbox: one thread per (streamer channel, clipper). Threads are keyed by the streamer's Twitch
+ * login so a clipper can write before the streamer has ever signed in; the streamer sees it
+ * the moment they log in with that Twitch account.
+ */
+export const threads = pgTable("threads", {
+  id: text("id").primaryKey().$defaultFn(createId),
+  streamerLogin: text("streamer_login").notNull(),
+  streamerDisplay: text("streamer_display"),
+  /** Set once the streamer has signed in (their NextAuth user id). */
+  streamerUserId: text("streamer_user_id"),
+  clipperId: text("clipper_id").notNull(),
+  clipperName: text("clipper_name"),
+  /** Optional Studio project the conversation is about. */
+  projectId: text("project_id"),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+  lastPreview: text("last_preview"),
+  unreadForStreamer: integer("unread_for_streamer").notNull().default(0),
+  unreadForClipper: integer("unread_for_clipper").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("threads_pair_idx").on(t.streamerLogin, t.clipperId),
+  index("threads_clipper_idx").on(t.clipperId, t.lastMessageAt),
+  index("threads_streamer_idx").on(t.streamerLogin, t.lastMessageAt),
+]);
+
+export const messages = pgTable("messages", {
+  id: text("id").primaryKey().$defaultFn(createId),
+  threadId: text("thread_id").notNull().references(() => threads.id, { onDelete: "cascade" }),
+  senderId: text("sender_id").notNull(),
+  senderRole: text("sender_role").notNull(), // "clipper" | "creator"
+  senderName: text("sender_name"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("messages_thread_idx").on(t.threadId, t.createdAt)]);
+
 export type Project = typeof projects.$inferSelect;
+export type ThreadRow = typeof threads.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
 export type AssetRow = typeof assets.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 export type VodAnalysisRow = typeof vodAnalyses.$inferSelect;
