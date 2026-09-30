@@ -1,6 +1,9 @@
 export type Vod = { id:string; title:string; duration:string; date:string; url:string; };
 export type Campaign = { id:string; streamer:string; initials:string; twitchUser:string; budget:number; targetViews:number; deliveredViews:number; budgetUsed:number; clipsAccepted:number; status:"open"|"upcoming"|"closed"; vods:Vod[]; };
-export type Clip = { id:string; campaignId:string; title:string; platform:string; url:string; views:number; earned:number; status:"pending"|"paid"|"rejected"; submittedBy:string; submittedById:string; date:string; };
+export type Clip = { id:string; campaignId:string; title:string; platform:string; url:string; views:number; earned:number; status:"pending"|"paid"|"rejected"; submittedBy:string; submittedById:string; date:string; tiktokVideoId?:string; coverUrl?:string; viewsSyncedAt?:string; };
+/** Payout rate: dollars per 1,000 verified views. */
+export const CPM = 0.5;
+export const payoutFor = (views:number) => (views/1000)*CPM;
 export const campaigns: Campaign[] = [
   { id:"c1",streamer:"DLOU",initials:"DL",twitchUser:"dlou",budget:750,targetViews:1500000,deliveredViews:1100000,budgetUsed:573.43,clipsAccepted:37,status:"open",
     vods:[{id:"v1",title:"DLOU reacts to fan DMs",duration:"3:42:00",date:"2026-04-13",url:"https://www.twitch.tv/videos/2000000001"},{id:"v2",title:"DLOU road to 100k stream",duration:"2:11:00",date:"2026-04-12",url:"https://www.twitch.tv/videos/2000000002"}]},
