@@ -13,7 +13,7 @@ export default function ReviewPage(){
   useEffect(()=>{fetch("/api/clips").then(r=>r.json()).then(setClips);fetch("/api/campaigns").then(r=>r.json()).then(setCampaigns);},[]);
   async function handleAction(id:string,action:"approve"|"reject"){
     setProcessing(id);
-    const v=parseInt(views[id]||"0");
+    const v=parseInt(views[id]||"0")||(clips.find(c=>c.id===id)?.views??0);
     await fetch(`/api/clips/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,views:v})});
     const [c,ca]=await Promise.all([fetch("/api/clips").then(r=>r.json()),fetch("/api/campaigns").then(r=>r.json())]);
     setClips(c);setCampaigns(ca);setProcessing(null);
@@ -30,7 +30,7 @@ export default function ReviewPage(){
         </div>
         <a href={clip.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:"var(--purple-text)",wordBreak:"break-all",display:"block",marginBottom:14}}>{clip.url}</a>
         <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-          <div style={{flex:1}}><div style={{fontSize:11,color:"var(--text1)",marginBottom:5}}>Verified view count</div><input type="number" placeholder="e.g. 50000" value={views[clip.id]||""} onChange={e=>setViews(p=>({...p,[clip.id]:e.target.value}))}/></div>
+          <div style={{flex:1}}><div style={{fontSize:11,color:"var(--text1)",marginBottom:5}}>Verified view count</div><input type="number" placeholder={clip.views?`${clip.views.toLocaleString()} (TikTok)`:"e.g. 50000"} value={views[clip.id]||""} onChange={e=>setViews(p=>({...p,[clip.id]:e.target.value}))}/></div>
           <Btn primary small disabled={processing===clip.id} onClick={()=>handleAction(clip.id,"approve")}>{processing===clip.id?"...":"Approve"}</Btn>
           <Btn small disabled={processing===clip.id} onClick={()=>handleAction(clip.id,"reject")}>Reject</Btn>
         </div>
