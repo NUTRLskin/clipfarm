@@ -3,11 +3,12 @@ import {useState,useEffect,useRef} from "react";
 import {useSession,signOut} from "next-auth/react";
 import {useRouter,usePathname} from "next/navigation";
 
-const CLIPPER_NAV=[{href:"/dashboard",label:"Home",icon:"⌸"},{href:"/campaigns",label:"Campaigns",icon:"▶"},{href:"/my-clips",label:"Clips",icon:"✂"},{href:"/earnings",label:"Earnings",icon:"$"}];
-const CREATOR_NAV=[{href:"/my-campaigns",label:"Campaigns",icon:"▶"},{href:"/review",label:"Review",icon:"✓"},{href:"/analytics",label:"Analytics",icon:"↗"}];
+const CLIPPER_NAV=[{href:"/dashboard",label:"Home",icon:"⌸"},{href:"/campaigns",label:"Campaigns",icon:"▶"},{href:"/studio",label:"Studio",icon:"✂"},{href:"/my-clips",label:"Clips",icon:"▤"},{href:"/inbox",label:"Inbox",icon:"✉"},{href:"/earnings",label:"Earnings",icon:"$"}];
+const CREATOR_NAV=[{href:"/my-campaigns",label:"Campaigns",icon:"▶"},{href:"/vods",label:"My VODs",icon:"▣"},{href:"/clippers",label:"Clippers",icon:"☺"},{href:"/inbox",label:"Inbox",icon:"✉"},{href:"/review",label:"Review",icon:"✓"},{href:"/analytics",label:"Analytics",icon:"↗"}];
 
-const CLIPPER_PATHS=new Set(["/dashboard","/campaigns","/my-clips","/earnings"]);
-const CREATOR_PATHS=new Set(["/my-campaigns","/review","/analytics"]);
+const CLIPPER_PATHS=new Set(["/dashboard","/campaigns","/studio","/my-clips","/earnings"]);
+const CREATOR_PATHS=new Set(["/my-campaigns","/review","/analytics","/vods","/clippers"]);
+// /inbox is in neither set: it's shared between roles and never bounces.
 
 function homeFor(mode:"clipper"|"creator"){return mode==="clipper"?"/dashboard":"/my-campaigns";}
 
@@ -21,6 +22,14 @@ const [hydrated,setHydrated]=useState(false);
 // race between setMode() and router.push() where the route guard could
 // see stale state and bounce the user back.
 const modeRef=useRef<"clipper"|"creator">("clipper");
+const [unread,setUnread]=useState(0);
+useEffect(()=>{
+if(!session)return;
+let dead=false;
+const tick=()=>fetch("/api/inbox").then(r=>r.ok?r.json():null).then(j=>{if(!dead&&j)setUnread((j.unread?.clipper||0)+(j.unread?.streamer||0));}).catch(()=>{});
+tick();const i=setInterval(tick,20000);
+return()=>{dead=true;clearInterval(i);};
+},[session,pathname]);
 
 // One-shot hydration. After the first authenticated render we let the user's
 // in-app toggle (switchMode) be the sole authority for mode. Without the
@@ -104,7 +113,7 @@ Clip<span style={{color:"#9146ff"}}>Farm</span>
 </div>
 {nav.map(item=>(
 <div key={item.href} onClick={()=>router.push(item.href)} style={{padding:"10px 16px",fontSize:13,color:pathname===item.href?"#efeff1":"#6b6b7a",cursor:"pointer",borderLeft:`2px solid ${pathname===item.href?"#9146ff":"transparent"}`,background:pathname===item.href?"rgba(145,70,255,0.1)":"transparent",fontWeight:pathname===item.href?500:400}}>
-{item.label}
+{item.label}{item.href==="/inbox"&&unread>0&&<span className="cf-navbadge">{unread}</span>}
 </div>
 ))}
 <div style={{marginTop:"auto",padding:"12px 10px 0"}}>
@@ -137,7 +146,7 @@ Clip<span style={{color:"#9146ff"}}>Farm</span>
 <nav style={{display:"flex",position:"fixed",bottom:0,left:0,right:0,background:"#18181b",borderTop:"1px solid rgba(255,255,255,0.08)",zIndex:50,paddingBottom:"env(safe-area-inset-bottom,0px)"}} className="cf-bottomnav">
 {nav.map(item=>{const active=pathname===item.href;return(
 <button key={item.href} onClick={()=>router.push(item.href)} style={{flex:1,padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:"none",border:"none",color:active?"#9146ff":"#6b6b7a"}}>
-<span style={{fontSize:18,lineHeight:1}}>{item.icon}</span>
+<span style={{fontSize:18,lineHeight:1,position:"relative"}}>{item.icon}{item.href==="/inbox"&&unread>0&&<span className="cf-navbadge" style={{position:"absolute",top:-6,right:-14,marginLeft:0}}>{unread}</span>}</span>
 <span style={{fontSize:10,fontWeight:active?500:400}}>{item.label}</span>
 </button>
 );})}

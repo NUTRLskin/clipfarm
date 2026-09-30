@@ -16,7 +16,9 @@ if (twitchConfigured) {
   }));
 }
 
-// Clippers sign in with TikTok. video.list lets us read view counts on their own videos.
+// Clippers sign in with TikTok. video.list lets us read view counts on their own videos;
+// video.upload lets Clipper Studio push exports to their TikTok drafts (Content Posting API).
+// Scopes are configurable so a TikTok app without Content Posting approved can still log in.
 if (tiktokConfigured()) {
   const base = TikTok({
     clientId: process.env.TIKTOK_CLIENT_KEY,
@@ -26,7 +28,7 @@ if (tiktokConfigured()) {
     ...base,
     authorization: {
       ...base.authorization,
-      params: { ...base.authorization.params, scope: "user.info.basic,video.list" },
+      params: { ...base.authorization.params, scope: process.env.TIKTOK_SCOPES || "user.info.basic,video.list,video.upload" },
     },
   });
 }
@@ -58,7 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: AUTH_SECRET,
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       const t: any = token;
       // Initial sign-in: persist role (and TikTok tokens) on the encrypted JWT.
       if (user) {
@@ -66,6 +68,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (u.role) t.role = u.role;
         else if (account?.provider === "twitch") t.role = "creator";
         else if (account?.provider === "tiktok") t.role = "clipper";
+      }
+      // Streamers: remember which Twitch channel this is — My VODs, Clippers and Inbox key off it.
+      if (account?.provider === "twitch") {
+        const p: any = profile || {};
+        t.twitch = { login: String(p.preferred_username || p.login || "").toLowerCase() || undefined, id: p.sub || account.providerAccountId, avatar: p.picture || null };
       }
       if (account?.provider === "tiktok" && account.access_token) {
         t.tiktok = {
@@ -92,6 +99,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).role = t.role || "creator";
         // Expose only whether TikTok is connected — never the tokens themselves.
         (session.user as any).tiktokConnected = !!t.tiktok?.accessToken;
+        (session.user as any).twitchLogin = t.twitch?.login || (token.sub === "demo-creator" ? process.env.DEMO_CREATOR_TWITCH || "dlou" : undefined);
+        (session.user as any).twitchAvatar = t.twitch?.avatar || null;
       }
       return session;
     },
