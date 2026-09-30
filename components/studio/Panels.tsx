@@ -76,6 +76,7 @@ function MediaPanel({ refresh }: { refresh: () => Promise<void> }) {
   const assets = useEditor(s => s.assets);
   const jobs = useEditor(s => s.jobs);
   const campaign = useEditor(s => s.campaign);
+  const channel = useEditor(s => s.channel);
   const projectId = useEditor(s => s.projectId);
   const setError = useEditor(s => s.setError);
   const { upload, busy } = useUpload(refresh);
@@ -92,7 +93,7 @@ function MediaPanel({ refresh }: { refresh: () => Promise<void> }) {
   return (
     <div>
       <div className="st-btn-row">
-        <button className="st-btn primary" onClick={() => setShowVod(true)} disabled={!campaign}>＋ From {campaign?.streamer || "VOD"}&apos;s VOD</button>
+        <button className="st-btn primary" onClick={() => setShowVod(true)} disabled={!channel && !campaign}>＋ From {channel?.display || campaign?.streamer || "VOD"}&apos;s VODs</button>
         <button className="st-btn" onClick={() => fileRef.current?.click()}>Upload</button>
         <input ref={fileRef} type="file" hidden accept="video/*,image/*,audio/*" multiple onChange={async e => { for (const f of Array.from(e.target.files || [])) await upload(f); e.target.value = ""; }} />
       </div>
@@ -123,7 +124,7 @@ function MediaPanel({ refresh }: { refresh: () => Promise<void> }) {
           );
         })}
       </div>
-      {showVod && campaign && <VodPicker campaignId={campaign.id} streamer={campaign.streamer} onClose={() => setShowVod(false)} onImport={importRange} />}
+      {showVod && (channel || campaign) && <VodPicker login={channel?.login || campaign!.twitchUser} streamer={channel?.display || campaign!.streamer} onClose={() => setShowVod(false)} onImport={importRange} />}
     </div>
   );
 }
@@ -468,7 +469,7 @@ function ExportPanel({ refresh }: { refresh: () => Promise<void> }) {
             {tiktokConnected ? <button className="st-btn primary" onClick={toTikTok} disabled={busy || sent}>{sent ? "✓ Sent to TikTok drafts" : "Send to TikTok drafts"}</button>
               : <a className="st-btn" href="/api/auth/signin/tiktok?callbackUrl=/studio/" onClick={e => { e.preventDefault(); import("next-auth/react").then(m => m.signIn("tiktok", { callbackUrl: `/studio/${projectId}` })); }}>Connect TikTok to send drafts</a>}
           </div>
-          {sent && <div className="st-hint" style={{ marginTop: 8 }}>Open the TikTok app → Inbox → finish posting from your drafts. Then submit the public link to the {campaign?.streamer} campaign from the Campaigns page.</div>}
+          {sent && <div className="st-hint" style={{ marginTop: 8 }}>Open the TikTok app → Inbox → finish posting from your drafts. {campaign ? ` Then submit the public link to the ${campaign.streamer} campaign from the Campaigns page.` : " To earn from it, submit the public link to a matching open campaign from the Campaigns page."}</div>}
           <div className="st-hint" style={{ marginTop: 8 }}>Not connected? Download the MP4 and post it from your phone, then submit the TikTok link on the Campaigns page.</div>
         </Section>
       )}

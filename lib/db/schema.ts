@@ -11,7 +11,12 @@ export const projects = pgTable("projects", {
   id: text("id").primaryKey().$defaultFn(createId),
   ownerId: text("owner_id").notNull(),
   ownerName: text("owner_name"),
-  campaignId: text("campaign_id").notNull(),
+  /** Optional — set when the clip is for a ClipFarm campaign (needed to submit for payout). */
+  campaignId: text("campaign_id"),
+  /** Twitch channel the footage comes from (any streamer, not just campaign ones). */
+  twitchLogin: text("twitch_login"),
+  twitchDisplay: text("twitch_display"),
+  twitchAvatar: text("twitch_avatar"),
   title: text("title").notNull().default("Untitled clip"),
   /** Timeline JSON (lib/editor/types.ts), autosaved by the editor. */
   timeline: jsonb("timeline").notNull(),

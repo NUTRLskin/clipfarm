@@ -15,6 +15,7 @@ export const GET = route(async (_req: Request, { params }: Ctx) => {
   return NextResponse.json({
     project: { id: p.id, title: p.title, campaignId: p.campaignId, timeline: p.timeline, exportAssetId: p.exportAssetId, updatedAt: p.updatedAt },
     campaign: c ? { id: c.id, streamer: c.streamer, twitchUser: c.twitchUser, status: c.status } : null,
+    channel: p.twitchLogin ? { login: p.twitchLogin, display: p.twitchDisplay || p.twitchLogin, avatar: p.twitchAvatar } : null,
     ...(await projectState(p.id)),
   });
 });

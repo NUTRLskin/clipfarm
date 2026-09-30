@@ -11,8 +11,12 @@ declare global { interface Window { Twitch?: any } }
 
 const MAX_MIN = 15;
 
-export default function VodPicker({ campaignId, streamer, onClose, onImport }: {
-  campaignId: string; streamer: string; onClose: () => void; onImport: (v: { vodId: string; start: number; end: number }) => Promise<void>;
+export default function VodPicker({ login, streamer, initialVodId, onClose, onImport }: {
+  /** Twitch channel login whose past broadcasts to list. */
+  login: string; streamer: string;
+  /** Jump straight to one VOD (e.g. from a pasted twitch.tv/videos URL). */
+  initialVodId?: string;
+  onClose: () => void; onImport: (v: { vodId: string; start: number; end: number }) => Promise<void>;
 }) {
   const [vods, setVods] = useState<VodInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +30,10 @@ export default function VodPicker({ campaignId, streamer, onClose, onImport }: {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`/api/twitch/vods?campaignId=${campaignId}`).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setVods(j.vods); })
+    const q = initialVodId ? `id=${encodeURIComponent(initialVodId)}` : `login=${encodeURIComponent(login)}`;
+    fetch(`/api/twitch/vods?${q}`).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setVods(j.vods); if (initialVodId && j.vods[0]) setVod(j.vods[0]); })
       .catch(e => setError(e.message));
-  }, [campaignId]);
+  }, [login, initialVodId]);
 
   // Twitch embed player.
   useEffect(() => {
@@ -77,7 +82,7 @@ export default function VodPicker({ campaignId, streamer, onClose, onImport }: {
           <div className="st-vod-list">
             {error && <div className="st-err">{error}</div>}
             {!vods && !error && <div className="st-hint"><Spinner /> Loading VODs…</div>}
-            {vods?.length === 0 && <div className="st-empty">No past broadcasts found for this streamer.</div>}
+            {vods?.length === 0 && <div className="st-empty">No past broadcasts found. The streamer may have VOD saving turned off, or their VODs have expired (Twitch keeps them 7–60 days).</div>}
             {vods?.map(v => (
               <button key={v.id} className="st-vod" onClick={() => setVod(v)}>
                 <div className="st-vod-thumb" style={v.thumbnail ? { backgroundImage: `url(${v.thumbnail})` } : {}} />
@@ -87,7 +92,7 @@ export default function VodPicker({ campaignId, streamer, onClose, onImport }: {
           </div>
         ) : (
           <div className="st-vod-editor">
-            <button className="st-link" onClick={() => setVod(null)}>← All VODs</button>
+            <button className="st-link" onClick={() => { setVod(null); if (initialVodId) fetch(`/api/twitch/vods?login=${encodeURIComponent(login)}`).then(r => r.json()).then(j => j.vods && setVods(j.vods)).catch(() => {}); }}>← All VODs</button>
             <div className="st-vod-title" style={{ margin: "6px 0" }}>{vod.title}</div>
             <div className="st-player" ref={hostRef} />
             {playerOk === false && (

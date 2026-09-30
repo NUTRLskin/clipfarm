@@ -8,6 +8,13 @@
       "when": 1790803008269,
       "tag": "0000_clipper_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790807083066,
+      "tag": "0001_any_channel",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,8 @@ type State = {
   assets: Record<string, AssetView>;
   jobs: JobView[];
   campaign: { id: string; streamer: string; twitchUser: string; status: string } | null;
+  /** Twitch channel the footage comes from — set for any project, campaign or not. */
+  channel: { login: string; display: string; avatar: string | null } | null;
   tiktokConnected: boolean;
   past: Timeline[];
   future: Timeline[];
@@ -56,14 +58,14 @@ type State = {
 let mergeTimer: any = null;
 
 export const useEditor = create<State>((set, get) => ({
-  projectId: "", title: "", timeline: null as any, assets: {}, jobs: [], campaign: null, tiktokConnected: false,
+  projectId: "", title: "", timeline: null as any, assets: {}, jobs: [], campaign: null, channel: null, tiktokConnected: false,
   past: [], future: [], selectedId: null, time: 0, playing: false, zoom: 60, panel: "media", dirty: false, saving: false,
   savedAt: null, error: null, faceRectEditing: null,
 
   load(data) {
     const assets: Record<string, AssetView> = {};
     for (const a of data.assets) assets[a.id] = a;
-    set({ projectId: data.project.id, title: data.project.title, timeline: data.project.timeline, assets, jobs: data.jobs, campaign: data.campaign, past: [], future: [], dirty: false, selectedId: null, time: 0 });
+    set({ projectId: data.project.id, title: data.project.title, timeline: data.project.timeline, assets, jobs: data.jobs, campaign: data.campaign, channel: data.channel ?? null, past: [], future: [], dirty: false, selectedId: null, time: 0 });
   },
   setAssets(list, jobs) { const assets: Record<string, AssetView> = {}; for (const a of list) assets[a.id] = a; set({ assets, jobs }); },
   setTitle(title) { set({ title, dirty: true }); },

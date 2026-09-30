@@ -1,7 +1,15 @@
 // Twitch Helix helpers (app access token). Docs: https://dev.twitch.tv/docs/api/reference/#get-videos
+// Server only — pure parsers that the browser also needs live in ./twitchParse.
 import { campaigns } from "./mockData";
+import { parseTwitchDuration } from "./twitchParse";
+export { parseTwitchDuration, parseVodInput } from "./twitchParse";
 
-export type VodInfo = { id: string; title: string; duration: number; createdAt: string; thumbnail: string | null; url: string; viewCount?: number };
+export type VodInfo = {
+  id: string; title: string; duration: number; createdAt: string; thumbnail: string | null; url: string; viewCount?: number;
+  /** Channel that owns the VOD (Helix user_login / user_name). */
+  userLogin?: string; userName?: string;
+};
+export type ChannelInfo = { id: string; login: string; display: string; avatar: string | null; live: boolean; game?: string; title?: string };
 
 let appToken: { token: string; exp: number } | null = null;
 const twitchConfigured = () => !!(process.env.TWITCH_CLIENT_ID && process.env.TWITCH_CLIENT_SECRET);
@@ -27,35 +35,71 @@ async function helix(path: string) {
   return res.json();
 }
 
-/** "3h2m10s" → seconds */
-export function parseTwitchDuration(s: string): number {
-  const m = /(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/.exec(s) || [];
-  return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
-}
 /** "3:42:00" → seconds */
 const parseClock = (s: string) => s.split(":").map(Number).reduce((a, b) => a * 60 + b, 0);
 
-export async function listVods(twitchLogin: string): Promise<VodInfo[]> {
-  if (!twitchConfigured()) {
-    const c = campaigns.find(c => c.twitchUser === twitchLogin);
-    return (c?.vods || []).map(v => ({ id: v.url.split("/").pop()!, title: v.title, duration: parseClock(v.duration), createdAt: v.date, thumbnail: null, url: v.url }));
-  }
-  const u = await helix(`users?login=${encodeURIComponent(twitchLogin)}`);
+const mapVod = (x: any): VodInfo => ({
+  id: x.id, title: x.title, duration: parseTwitchDuration(x.duration), createdAt: x.created_at, url: x.url, viewCount: x.view_count,
+  userLogin: x.user_login, userName: x.user_name,
+  thumbnail: x.thumbnail_url && !x.thumbnail_url.includes("_404") ? x.thumbnail_url.replace("%{width}", "320").replace("%{height}", "180") : null,
+});
+const mockVods = (login: string): VodInfo[] => {
+  const c = campaigns.find(c => c.twitchUser === login);
+  return (c?.vods || []).map(v => ({ id: v.url.split("/").pop()!, title: v.title, duration: parseClock(v.duration), createdAt: v.date, thumbnail: null, url: v.url, userLogin: c!.twitchUser, userName: c!.streamer }));
+};
+
+/** Past broadcasts (type=archive) for any channel. Only VODs the streamer has kept on Twitch are listed. */
+export async function listVods(twitchLogin: string, first = 50): Promise<VodInfo[]> {
+  const login = twitchLogin.toLowerCase();
+  if (!twitchConfigured()) return mockVods(login);
+  const u = await helix(`users?login=${encodeURIComponent(login)}`);
   const id = u.data?.[0]?.id;
   if (!id) return [];
-  const v = await helix(`videos?user_id=${id}&type=archive&first=30`);
-  return (v.data || []).map((x: any) => ({
-    id: x.id, title: x.title, duration: parseTwitchDuration(x.duration), createdAt: x.created_at, url: x.url, viewCount: x.view_count,
-    thumbnail: x.thumbnail_url && !x.thumbnail_url.includes("_404") ? x.thumbnail_url.replace("%{width}", "320").replace("%{height}", "180") : null,
-  }));
+  const v = await helix(`videos?user_id=${id}&type=archive&first=${first}`);
+  return (v.data || []).map(mapVod);
 }
 
-/** Accepts "https://www.twitch.tv/videos/123", "twitch.tv/videos/123?t=1h2m3s" or "123". */
-export function parseVodInput(input: string): { id: string; t: number } | null {
-  const s = input.trim();
-  if (/^\d{6,}$/.test(s)) return { id: s, t: 0 };
-  const m = /twitch\.tv\/videos\/(\d+)/.exec(s);
-  if (!m) return null;
-  const t = /[?&]t=([\dhms]+)/.exec(s);
-  return { id: m[1], t: t ? parseTwitchDuration(t[1]) : 0 };
+/** One VOD by id — the authoritative owner check for imports (works for any channel). */
+export async function getVod(vodId: string): Promise<VodInfo | null> {
+  if (!/^\d+$/.test(vodId)) return null;
+  if (!twitchConfigured()) return campaigns.flatMap(c => mockVods(c.twitchUser)).find(v => v.id === vodId) || null;
+  try {
+    const v = await helix(`videos?id=${vodId}`);
+    const x = v.data?.[0];
+    return x ? mapVod(x) : null;
+  } catch (e: any) {
+    if (/ 404$/.test(e.message)) return null; // Helix returns 404 for unknown/deleted video ids
+    throw e;
+  }
+}
+
+const mapChannel = (x: any): ChannelInfo => ({
+  id: x.id, login: x.broadcaster_login || x.login, display: x.display_name, avatar: x.thumbnail_url || x.profile_image_url || null,
+  live: !!x.is_live, game: x.game_name || undefined, title: x.title || undefined,
+});
+
+/** Search Twitch channels by name (Helix search/channels). */
+export async function searchChannels(q: string, first = 10): Promise<ChannelInfo[]> {
+  const query = q.trim();
+  if (!query) return [];
+  if (!twitchConfigured()) {
+    return campaigns.filter(c => c.twitchUser.includes(query.toLowerCase()) || c.streamer.toLowerCase().includes(query.toLowerCase()))
+      .map(c => ({ id: c.id, login: c.twitchUser, display: c.streamer, avatar: null, live: false }));
+  }
+  const r = await helix(`search/channels?query=${encodeURIComponent(query)}&first=${first}`);
+  const list: ChannelInfo[] = (r.data || []).map(mapChannel);
+  // Helix search is fuzzy; put an exact login match first so "xqc" finds xqc, not "xqcfan123".
+  const exact = list.findIndex(c => c.login === query.toLowerCase());
+  if (exact > 0) list.unshift(...list.splice(exact, 1));
+  return list;
+}
+
+/** Exact channel lookup by login. */
+export async function getChannel(login: string): Promise<ChannelInfo | null> {
+  const l = login.trim().toLowerCase().replace(/^@/, "");
+  if (!/^[a-z0-9_]{3,25}$/.test(l)) return null;
+  if (!twitchConfigured()) { const c = campaigns.find(c => c.twitchUser === l); return c ? { id: c.id, login: c.twitchUser, display: c.streamer, avatar: null, live: false } : null; }
+  const u = await helix(`users?login=${encodeURIComponent(l)}`);
+  const x = u.data?.[0];
+  return x ? mapChannel(x) : null;
 }
