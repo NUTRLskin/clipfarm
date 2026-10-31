@@ -35,7 +35,9 @@ export const GET = route(async () => {
 async function newInvite(req: Request, staffId: string) {
   const token = randomBytes(32).toString("base64url");
   await getDb().insert(schema.staffInvites).values({ tokenHash: sha256(token), staffId, expiresAt: new Date(Date.now() + INVITE_HOURS * 3600_000) });
-  return `${appUrl(req)}/admin/invite?token=${token}`;
+  // With the admin portal on its own domain (ADMIN_HOST), invites must open there, not on the app domain.
+  const base = process.env.ADMIN_HOST ? `https://${process.env.ADMIN_HOST}` : appUrl(req);
+  return `${base}/admin/invite?token=${token}`;
 }
 
 /** Only Owners may create, change or remove Owners. */
