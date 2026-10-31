@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Pencil, MessageSquare } from "lucide-react";
 import AppShell from "@/components/AppShell";
-import { MetricCard, Avatar, fmtViews, fmtMoney } from "@/components/ui";
+import { MetricCard, Avatar, PageHeader, EmptyState, Skeleton, fmtViews, fmtMoney } from "@/components/ui";
+import { Page, ErrorState, ListSkeleton, LinkBtn, ic } from "@/components/PageKit";
 import "@/components/studio/studio.css";
 
 type Clipper = { id: string; name: string; projects: number; imports: number; exports: number; submitted: number; views: number; earned: number; lastActive: string; latest: { id: string; title: string; updatedAt: string; exported: boolean }[] };
@@ -14,7 +16,8 @@ export default function Clippers() {
   const router = useRouter();
   const [data, setData] = useState<{ clippers: Clipper[]; totals: any } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { fetch("/api/creator/clippers").then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setData(j); }).catch(e => setError(e.message)); }, []);
+  function load() { setError(null); setData(null); fetch("/api/creator/clippers").then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setData(j); }).catch(e => setError(e.message)); }
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function message(c: Clipper) {
     // Streamers reply inside existing threads; opening one from this side lands in the inbox filtered to that clipper.
@@ -23,41 +26,49 @@ export default function Clippers() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
-        <div style={{ fontSize: 22, fontWeight: 700 }}>Clippers</div>
-        <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 2, marginBottom: 16 }}>Everyone who has pulled footage from your Twitch into ClipFarm Studio.</div>
-        {error && <div className="st-err">{error}</div>}
+      <Page>
+        <PageHeader title="Clippers" sub="Everyone who has pulled footage from your Twitch into the Farm." />
+        {error && <ErrorState title="Couldn't load clippers" message={error} onRetry={load} />}
+        {!data && !error && <>
+          <div className="cf-metrics four" style={{ marginBottom: 24 }}>{[0, 1, 2, 3].map(i => <div key={i} className="cf-card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}><Skeleton h={12} w="50%" /><Skeleton h={22} w="40%" /></div>)}</div>
+          <ListSkeleton rows={3} height={72} />
+        </>}
         {data && <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
-            <MetricCard label="Clippers" value={String(data.totals.clippers)} sub="have clipped you" />
-            <MetricCard label="Projects" value={String(data.totals.projects)} sub="in Studio" />
-            <MetricCard label="Exports" value={String(data.totals.exports)} sub="finished videos" />
-            <MetricCard label="Submitted" value={String(data.totals.submitted)} sub={`${fmtViews(data.totals.views)} views`} />
+          <div className="cf-metrics four" style={{ marginBottom: 24 }}>
+            <MetricCard label="Clippers" value={String(data.totals.clippers)} sub="Have clipped you" />
+            <MetricCard label="Projects" value={String(data.totals.projects)} sub="In the Farm" />
+            <MetricCard label="Exports" value={String(data.totals.exports)} sub="Finished videos" />
+            <MetricCard label="Submitted" value={String(data.totals.submitted)} sub={`${fmtViews(data.totals.views)} verified views`} />
           </div>
-          {data.clippers.length === 0 && <div className="st-empty">Nobody yet. Once clippers open your VODs in Studio they&apos;ll show up here.</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {data.clippers.length === 0 && <EmptyState title="No clippers yet" body="Once clippers open your VODs in the Farm, they show up here." action={<LinkBtn href="/vods">See your VODs</LinkBtn>} />}
+          <div className="cf-list">
             {data.clippers.map(c => (
-              <div key={c.id} style={{ background: "var(--bg1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar initials={c.name.slice(0, 2).toUpperCase()} size={36} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
-                    <div className="st-hint">Active {ago(c.lastActive)} · {c.projects} project{c.projects === 1 ? "" : "s"} · {c.imports} import{c.imports === 1 ? "" : "s"} · {c.exports} export{c.exports === 1 ? "" : "s"}</div>
+              <div key={c.id} className="cf-card" style={{ padding: 16, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", minWidth: 0 }}>
+                    <Avatar initials={c.name.slice(0, 2).toUpperCase()} size={36} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="cf-ellipsis" style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
+                      <div className="cf-meta">Active {ago(c.lastActive)} · <span className="num">{c.projects}</span> project{c.projects === 1 ? "" : "s"} · <span className="num">{c.imports}</span> import{c.imports === 1 ? "" : "s"} · <span className="num">{c.exports}</span> export{c.exports === 1 ? "" : "s"}</div>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.submitted ? fmtViews(c.views) : "—"}</div>
-                    <div className="st-hint">{c.submitted ? `${c.submitted} clip${c.submitted === 1 ? "" : "s"} · ${fmtMoney(c.earned)}` : "nothing submitted"}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div className="num" style={{ fontSize: 15, fontWeight: 500 }}>{c.submitted ? fmtViews(c.views) : "–"}</div>
+                      <div className="cf-meta">{c.submitted ? <><span className="num">{c.submitted}</span> clip{c.submitted === 1 ? "" : "s"} · <span className="num money">{fmtMoney(c.earned)}</span></> : "Nothing submitted"}</div>
+                    </div>
+                    <button className="cf-btn cf-btn--sm" onClick={() => message(c)}><MessageSquare {...ic} size={14} />Message</button>
                   </div>
-                  <button className="st-btn small" onClick={() => message(c)}>Message</button>
                 </div>
-                {c.latest.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-                  {c.latest.map(p => <span key={p.id} className="st-hint" style={{ background: "var(--bg2)", padding: "3px 8px", borderRadius: 6 }}>{p.exported ? "✓ " : "✎ "}{p.title}</span>)}
+                {c.latest.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+                  {c.latest.map(p => <span key={p.id} className="cf-meta" style={{ background: "var(--surface-2)", padding: "3px 8px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, maxWidth: "100%" }}>
+                    {p.exported ? <Check {...ic} size={12} aria-label="Exported" /> : <Pencil {...ic} size={12} aria-label="In progress" />}<span className="cf-ellipsis">{p.title}</span></span>)}
                 </div>}
               </div>
             ))}
           </div>
         </>}
-      </div>
+      </Page>
     </AppShell>
   );
 }

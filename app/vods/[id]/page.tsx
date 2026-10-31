@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { Avatar, PageHeader, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
+import { Page, ErrorState, ListSkeleton, LinkBtn, ic } from "@/components/PageKit";
 import { Filmstrip, Loudness, Moments, useAnalysis } from "@/components/studio/VodHighlights";
 import { fmtTime } from "@/lib/editor/timeline";
 import type { VodInfo } from "@/lib/twitch";
@@ -19,14 +22,16 @@ export default function VodDetail() {
   const [cur, setCur] = useState(0);
   const [moment, setMoment] = useState<Moment | null>(null);
   const [clippers, setClippers] = useState<any[] | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const analysis = useAnalysis(vod?.id ?? null);
   const playerRef = useRef<any>(null);
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setError(null);
     fetch(`/api/twitch/vods?id=${id}`).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setVod(j.vods[0]); }).catch(e => setError(e.message));
     fetch("/api/creator/clippers").then(r => r.json()).then(j => setClippers(j.clippers || [])).catch(() => setClippers([]));
-  }, [id]);
+  }, [id, attempt]);
 
   useEffect(() => {
     if (!vod || !hostRef.current) return;
@@ -48,38 +53,45 @@ export default function VodDetail() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
-        <button className="st-link" onClick={() => router.push("/vods")}>← My VODs</button>
-        {error && <div className="st-err" style={{ marginTop: 8 }}>{error}</div>}
+      <Page>
+        <button className="cf-link" style={{ marginBottom: 12 }} onClick={() => router.push("/vods")}><ArrowLeft {...ic} size={14} />Your VODs</button>
+        {error && <ErrorState title="Couldn't load this VOD" message={error} onRetry={() => setAttempt(a => a + 1)} />}
+        {!vod && !error && <div style={{ display: "flex", flexDirection: "column", gap: 10 }}><Skeleton h={28} w="60%" /><Skeleton h={14} w="35%" /><div style={{ aspectRatio: "16/9", width: "100%", borderRadius: 12, background: "var(--surface-2)" }} /></div>}
         {vod && <>
-          <div style={{ fontSize: 18, fontWeight: 700, margin: "6px 0 2px" }}>{vod.title}</div>
-          <div className="st-hint">{fmtTime(vod.duration)} · {new Date(vod.createdAt).toLocaleString()} · <a className="st-link" href={vod.url} target="_blank" rel="noreferrer">twitch.tv ↗</a></div>
-          <div className="st-player" ref={hostRef} style={{ marginTop: 10 }} />
+          <PageHeader title={vod.title}
+            sub={<><span className="num">{fmtTime(vod.duration)}</span> · {new Date(vod.createdAt).toLocaleString()}</>}
+            action={<LinkBtn href={vod.url} external small ghost>Watch on Twitch<ExternalLink {...ic} size={14} /></LinkBtn>} />
+          <div className="st-player" ref={hostRef} />
           <Filmstrip analysis={analysis} duration={vod.duration} cur={cur} onSeek={seek} />
           <div className="st-scrub">
             <Loudness analysis={analysis} />
-            <input type="range" min={0} max={vod.duration} step={1} value={cur} onChange={e => seek(Number(e.target.value))} />
+            <input type="range" min={0} max={vod.duration} step={1} value={cur} onChange={e => seek(Number(e.target.value))} aria-label="Position in VOD" />
             <div className="st-scrub-marks">
               {analysis?.moments.map(m => <button key={m.id} className={`moment ${moment?.id === m.id ? "on" : ""}`} title={m.reasons[0]?.label} style={{ left: `${(m.peak / vod.duration) * 100}%`, opacity: 0.45 + 0.55 * m.score }} onClick={() => use(m)} />)}
               {moment && <span className="range" style={{ left: `${(moment.start / vod.duration) * 100}%`, width: `${((moment.end - moment.start) / vod.duration) * 100}%` }} />}
             </div>
           </div>
-          <div className="st-hint" style={{ marginTop: 4 }}>{fmtTime(cur)}{moment ? ` · viewing moment ${fmtTime(moment.start)}–${fmtTime(moment.end)}` : ""}</div>
+          <div className="cf-meta" style={{ marginTop: 4 }}><span className="num">{fmtTime(cur)}</span>{moment ? <> · viewing moment <span className="num">{fmtTime(moment.start)}–{fmtTime(moment.end)}</span></> : ""}</div>
           <Moments analysis={analysis} duration={vod.duration} active={moment} onUse={use} />
-          <div className="st-hint" style={{ marginTop: 4 }}>These are the same moments clippers see when they open this VOD in Studio.</div>
+          <div className="cf-meta" style={{ marginTop: 4 }}>Clippers see these same moments when they open this VOD in the Farm.</div>
 
-          <div style={{ fontSize: 14, fontWeight: 600, margin: "22px 0 8px" }}>Clippers working on your channel</div>
-          {clippers && clippers.length === 0 && <div className="st-empty">Nobody has pulled from your VODs yet.</div>}
-          <div className="st-vod-list">
-            {clippers?.slice(0, 8).map(c => (
-              <div key={c.id} className="st-vod" style={{ cursor: "default" }}>
-                <div style={{ flex: 1, minWidth: 0 }}><div className="st-vod-title">{c.name}</div><div className="st-hint">{c.projects} project{c.projects === 1 ? "" : "s"} · {c.imports} import{c.imports === 1 ? "" : "s"} · {c.exports} export{c.exports === 1 ? "" : "s"}{c.submitted ? ` · ${c.submitted} submitted` : ""}</div></div>
-                <button className="st-btn small" onClick={() => router.push(`/clippers`)}>Details</button>
+          <SectionTitle>Clippers working on your channel</SectionTitle>
+          {!clippers && <ListSkeleton rows={2} height={56} />}
+          {clippers && clippers.length === 0 && <EmptyState title="Nobody's clipping yet" body="When clippers pull from your VODs, they show up here." action={<LinkBtn href="/clippers">See all clippers</LinkBtn>} />}
+          {clippers && clippers.length > 0 && <div className="cf-card cf-rows">
+            {clippers.slice(0, 8).map(c => (
+              <div key={c.id} className="cf-row" style={{ flexWrap: "wrap" }}>
+                <Avatar initials={String(c.name).slice(0, 2).toUpperCase()} size={32} />
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div className="cf-ellipsis" style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
+                  <div className="cf-meta"><span className="num">{c.projects}</span> project{c.projects === 1 ? "" : "s"} · <span className="num">{c.imports}</span> import{c.imports === 1 ? "" : "s"} · <span className="num">{c.exports}</span> export{c.exports === 1 ? "" : "s"}{c.submitted ? <> · <span className="num">{c.submitted}</span> submitted</> : ""}</div>
+                </div>
+                <button className="cf-btn cf-btn--ghost cf-btn--sm" onClick={() => router.push(`/clippers`)}>Details</button>
               </div>
             ))}
-          </div>
+          </div>}
         </>}
-      </div>
+      </Page>
     </AppShell>
   );
 }

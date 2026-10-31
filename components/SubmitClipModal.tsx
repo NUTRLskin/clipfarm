@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { AlertCircle } from "lucide-react";
 import { Btn } from "@/components/ui";
+import { Sheet, ic } from "@/components/PageKit";
 import type { Campaign } from "@/lib/mockData";
 
 export default function SubmitClipModal({ campaign, tiktokConnected, tiktokRequired, onClose, onSubmitted }:{
@@ -20,35 +22,35 @@ export default function SubmitClipModal({ campaign, tiktokConnected, tiktokRequi
     });
     const json = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) { setError(json.error || "Something went wrong"); return; }
+    if (!res.ok) { setError(json.error || "Something went wrong. Try again."); return; }
     onSubmitted();
   }
 
   const needsConnect = tiktokRequired && !tiktokConnected;
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50, padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "var(--bg1)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>Submit a clip</div>
-        <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16 }}>{campaign.streamer} campaign</div>
-        {needsConnect ? (
-          <>
-            <div style={{ fontSize: 13, color: "var(--text1)", marginBottom: 14, lineHeight: 1.5 }}>Connect your TikTok so we can verify the clip is yours and track its views automatically.</div>
-            <Btn primary full onClick={() => signIn("tiktok", { callbackUrl: "/campaigns" })}>Connect TikTok</Btn>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 11, color: "var(--text1)", marginBottom: 5 }}>TikTok video link</div>
-            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.tiktok.com/@you/video/…" style={{ width: "100%", marginBottom: 12 }} />
-            <div style={{ fontSize: 11, color: "var(--text1)", marginBottom: 5 }}>Title (optional{tiktokConnected ? " — we'll use your TikTok caption" : ""})</div>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What happens in the clip" style={{ width: "100%", marginBottom: 14 }} />
-            {error && <div style={{ fontSize: 13, color: "var(--red-text)", marginBottom: 12 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 8 }}>
-              <Btn onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-              <Btn primary onClick={submit} disabled={busy || !url} style={{ flex: 1 }}>{busy ? "Verifying…" : "Submit"}</Btn>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <Sheet title="Submit a clip" sub={`For ${campaign.streamer}'s contract`} onClose={onClose}>
+      {needsConnect ? (
+        <>
+          <p className="cf-sub" style={{ marginBottom: 16, lineHeight: 1.5 }}>Connect your TikTok first. We use it to check the clip is yours and to count its views.</p>
+          <Btn primary full onClick={async () => { await fetch("/api/account/link", { method: "POST" }); signIn("tiktok", { callbackUrl: "/campaigns" }); }}>Connect TikTok</Btn>
+        </>
+      ) : (
+        <>
+          <label className="cf-field">
+            <span className="cf-label">TikTok video link</span>
+            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.tiktok.com/@you/video/…" inputMode="url" />
+          </label>
+          <label className="cf-field">
+            <span className="cf-label">Title (optional{tiktokConnected ? ". We'll use your TikTok caption if you leave it blank" : ""})</span>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What happens in the clip" />
+          </label>
+          {error && <div role="alert" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "var(--danger)", marginBottom: 14 }}><AlertCircle {...ic} style={{ flexShrink: 0, marginTop: 2 }} />{error}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn ghost onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
+            <Btn primary onClick={submit} disabled={busy || !url} style={{ flex: 1 }}>{busy ? "Checking…" : "Submit clip"}</Btn>
+          </div>
+        </>
+      )}
+    </Sheet>
   );
 }

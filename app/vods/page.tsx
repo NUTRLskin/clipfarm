@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { PageHeader, EmptyState } from "@/components/ui";
+import { Page, ErrorState, ListSkeleton, LinkBtn, ic } from "@/components/PageKit";
 import { fmtTime } from "@/lib/editor/timeline";
 import type { VodInfo } from "@/lib/twitch";
 import "@/components/studio/studio.css";
@@ -12,36 +15,38 @@ export default function MyVods() {
   const [vods, setVods] = useState<VodInfo[] | null>(null);
   const [heat, setHeat] = useState<Record<string, { imports: number; clippers: number }>>({});
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  function load() {
+    setError(null); setVods(null);
     fetch("/api/creator/vods").then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setVods(j.vods); }).catch(e => setError(e.message));
     fetch("/api/creator/clippers").then(r => r.json()).then(j => { const h: any = {}; for (const v of j.vods || []) h[v.vodId] = v; setHeat(h); }).catch(() => {});
-  }, []);
+  }
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <AppShell>
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
-        <div style={{ fontSize: 22, fontWeight: 700 }}>My VODs</div>
-        <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 2, marginBottom: 16 }}>Your kept broadcasts on Twitch. Open one to see the moments clippers are being pointed at, and who&apos;s clipping it.</div>
-        {error && <div className="st-err">{error}{/Twitch/.test(error) && <div className="st-hint">Streamer tools need a Twitch login. Sign out and sign back in with Twitch.</div>}</div>}
-        {!vods && !error && <div className="st-hint">Loading…</div>}
-        {vods?.length === 0 && <div className="st-empty">No past broadcasts found. Turn on “Store past broadcasts” in Twitch → Settings → Stream, and your next stream will show up here.</div>}
-        <div className="st-vod-list">
-          {vods?.map(v => {
+      <Page>
+        <PageHeader title="Your VODs" sub="Your saved Twitch broadcasts. Open one to see its top moments and who's clipping it." />
+        {error && <ErrorState title="Couldn't load your VODs" message={error} onRetry={load}>{/Twitch/.test(error) && <div className="cf-meta" style={{ marginTop: 4 }}>Streamer tools need a Twitch login. Sign out, then sign back in with Twitch.</div>}</ErrorState>}
+        {!vods && !error && <ListSkeleton rows={4} height={76} />}
+        {vods?.length === 0 && <EmptyState title="No past broadcasts yet" body="Turn on “Store past broadcasts” in your Twitch stream settings. Your next stream shows up here."
+          action={<LinkBtn href="https://dashboard.twitch.tv/settings/stream" external>Open Twitch settings<ExternalLink {...ic} size={14} /></LinkBtn>} />}
+        {vods && vods.length > 0 && <div className="st-vod-list">
+          {vods.map(v => {
             const h = heat[v.id];
             return (
-              <button key={v.id} className="st-vod" onClick={() => router.push(`/vods/${v.id}`)}>
+              <button key={v.id} className="st-vod cf-vod-row" onClick={() => router.push(`/vods/${v.id}`)}>
                 <div className="st-vod-thumb" style={v.thumbnail ? { backgroundImage: `url(${v.thumbnail})` } : {}} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="st-vod-title">{v.title}</div>
-                  <div className="st-hint">{fmtTime(v.duration)} · {new Date(v.createdAt).toLocaleDateString()}{v.viewCount ? ` · ${v.viewCount.toLocaleString()} views` : ""}</div>
+                  <div className="cf-meta"><span className="num">{fmtTime(v.duration)}</span> · {new Date(v.createdAt).toLocaleDateString()}{v.viewCount ? <> · <span className="num">{v.viewCount.toLocaleString()}</span> views</> : ""}</div>
                 </div>
-                <div className="st-hint" style={{ textAlign: "right", flexShrink: 0 }}>
-                  {h ? <><b style={{ color: "var(--purple-text)" }}>{h.imports}</b> import{h.imports === 1 ? "" : "s"}<br />{h.clippers} clipper{h.clippers === 1 ? "" : "s"}</> : <span style={{ opacity: .6 }}>not clipped yet</span>}
+                <div className="cf-meta" style={{ textAlign: "right", flexShrink: 0 }}>
+                  {h ? <><span className="num" style={{ color: "var(--text)", fontWeight: 500 }}>{h.imports}</span> import{h.imports === 1 ? "" : "s"}<br /><span className="num">{h.clippers}</span> clipper{h.clippers === 1 ? "" : "s"}</> : "Not clipped yet"}
                 </div>
               </button>
             );
           })}
-        </div>
-      </div>
+        </div>}
+      </Page>
     </AppShell>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { campaigns } from "@/lib/mockData";
+import { getContract } from "@/lib/contracts";
 import { getOwnedProject, projectState, requireUser, route, HttpError } from "@/lib/studio";
 import { removeObject } from "@/lib/storage";
 import { validateTimeline } from "@/lib/editor/validate";
@@ -11,10 +11,10 @@ type Ctx = { params: Promise<{ id: string }> };
 export const GET = route(async (_req: Request, { params }: Ctx) => {
   const user = await requireUser();
   const p = await getOwnedProject((await params).id, user.id);
-  const c = campaigns.find(c => c.id === p.campaignId);
+  const c = await getContract(p.campaignId);
   return NextResponse.json({
     project: { id: p.id, title: p.title, campaignId: p.campaignId, timeline: p.timeline, exportAssetId: p.exportAssetId, updatedAt: p.updatedAt },
-    campaign: c ? { id: c.id, streamer: c.streamer, twitchUser: c.twitchUser, status: c.status } : null,
+    campaign: c ? { id: c.id, streamer: c.streamerName, twitchUser: c.twitchLogin, status: c.status } : null,
     channel: p.twitchLogin ? { login: p.twitchLogin, display: p.twitchDisplay || p.twitchLogin, avatar: p.twitchAvatar } : null,
     ...(await projectState(p.id)),
   });

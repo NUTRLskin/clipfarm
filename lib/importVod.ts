@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import type { Project } from "./db/schema";
 import { enqueue } from "./jobs";
-import { campaigns } from "./mockData";
+import { getContract } from "./contracts";
 import { getVod } from "./twitch";
 import { HttpError, MAX_IMPORT_SECONDS } from "./studio";
 import { fmtTime } from "./editor/timeline";
@@ -27,8 +27,8 @@ export async function importVodRange(p: Project, vod: { vodId: string; start: nu
 
   const owner = (v.userLogin || "").toLowerCase();
   if (p.campaignId) {
-    const c = campaigns.find(c => c.id === p.campaignId);
-    if (c && owner && owner !== c.twitchUser) throw new HttpError(403, `Clips for the ${c.streamer} campaign must come from twitch.tv/${c.twitchUser}`);
+    const c = await getContract(p.campaignId);
+    if (c && owner && owner !== c.twitchLogin) throw new HttpError(403, `Clips for the ${c.streamerName} contract must come from twitch.tv/${c.twitchLogin}`);
   } else if (p.twitchLogin && owner && owner !== p.twitchLogin) {
     throw new HttpError(400, `This project is for twitch.tv/${p.twitchLogin} — start a new clip to use another streamer's VOD`);
   }

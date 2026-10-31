@@ -24,11 +24,18 @@ export async function requireUser() {
   if (!session?.user?.id) throw new HttpError(401, "Sign in first");
   return session.user as SessionUser;
 }
+/** Clipper routes: clipper accounts only. Someone who is both uses a second account. */
+export async function requireClipper() {
+  const u = await requireUser();
+  if (u.role !== "clipper") throw new HttpError(403, "This is for clipper accounts. Sign in on the clipper side.");
+  return u;
+}
 export type SessionUser = { id: string; name?: string; role?: string; twitchLogin?: string; twitchAvatar?: string | null; tiktokConnected?: boolean };
 
-/** Streamer routes: must be signed in with Twitch (or the demo creator) so we know the channel. */
+/** Streamer routes: a streamer account, signed in with Twitch (or the demo creator) so we know the channel. */
 export async function requireStreamer() {
   const u = await requireUser();
+  if (u.role !== "creator") throw new HttpError(403, "This is for streamer accounts. Sign in with Twitch on the streamer side.");
   if (!u.twitchLogin) throw new HttpError(403, "Sign in with Twitch to use the streamer dashboard");
   return u as SessionUser & { twitchLogin: string };
 }

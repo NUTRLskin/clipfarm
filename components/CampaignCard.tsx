@@ -1,30 +1,48 @@
 "use client";
-import {Avatar,Badge,Btn,ProgressBar,fmtViews,fmtMoney,pct} from "./ui";
+import {Avatar,Btn,ProgressBar,fmtViews,fmtMoney,pct} from "./ui";
 import {useRouter} from "next/navigation";
-import type {Campaign} from "@/lib/mockData";
-export default function CampaignCard({campaign,isCreator,onSubmit,onManage}:{campaign:Campaign;isCreator?:boolean;onSubmit?:(c:Campaign)=>void;onManage?:(c:Campaign)=>void}){
-  const p=pct(campaign.deliveredViews,campaign.targetViews);
+import {Scissors,Upload,Settings2} from "lucide-react";
+import {ContractBadge,ic} from "./PageKit";
+import {CPM,type Campaign} from "@/lib/mockData";
+
+/** A contract: who it's for, what it pays, how much budget is left.
+ *  `quiet` drops the purple Submit button to secondary (for screens that already have a primary action). */
+export default function CampaignCard({campaign,isCreator,onSubmit,onManage,quiet}:{campaign:Campaign;isCreator?:boolean;onSubmit?:(c:Campaign)=>void;onManage?:(c:Campaign)=>void;quiet?:boolean}){
   const router=useRouter();
-  return(<div style={{background:"var(--bg2)",borderRadius:14,border:"1px solid var(--border)",overflow:"hidden"}}>
-    <div style={{padding:"14px 14px 12px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-        <Avatar initials={campaign.initials} size={40}/>
-        <div style={{minWidth:0}}>
-          <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{campaign.streamer}</div>
-          <div style={{fontSize:11,color:"var(--text2)",marginTop:1}}>{fmtViews(campaign.targetViews)} target · {fmtMoney(campaign.budget)}</div>
-        </div>
+  const left=Math.max(0,campaign.budget-campaign.budgetUsed);
+  const leftPct=pct(left,campaign.budget);
+  const open=campaign.status==="open";
+  return(<div className="cf-card" style={{padding:16,display:"flex",flexDirection:"column",gap:14,minWidth:0}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+      <Avatar initials={campaign.initials} size={40}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div className="cf-ellipsis" style={{fontSize:15,fontWeight:600}}>{campaign.streamer}</div>
+        <div className="cf-meta cf-ellipsis">twitch.tv/{campaign.twitchUser}</div>
       </div>
-      <Badge type={campaign.status==="open"?"green":campaign.status==="upcoming"?"amber":"default"}>{campaign.status}</Badge>
+      {(!open||campaign.funded===false)&&<ContractBadge status={campaign.funded===false?"funding":campaign.status}/>}
     </div>
-    <div style={{padding:"12px 14px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text1)"}}><span>Views delivered</span><span style={{fontWeight:500,color:"var(--text0)"}}>{fmtViews(campaign.deliveredViews)} / {fmtViews(campaign.targetViews)}</span></div>
-      <ProgressBar value={p}/>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text2)",marginBottom:14}}><span>{campaign.clipsAccepted} clips</span><span>{fmtMoney(campaign.budgetUsed)} spent</span></div>
-      <div style={{display:"flex",gap:8}}>
-        {!isCreator&&<Btn full onClick={()=>router.push("/studio")} disabled={campaign.status!=="open"}>✂ Make a clip</Btn>}
-        {!isCreator&&<Btn full primary onClick={()=>onSubmit?.(campaign)} disabled={campaign.status!=="open"}>Submit clip</Btn>}
-        {isCreator&&<Btn full primary onClick={()=>onManage?.(campaign)}>Manage</Btn>}
+
+    <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+      <span className="num money" style={{fontSize:28,fontWeight:500,lineHeight:1.1}}>{fmtMoney(campaign.rate ?? CPM)}</span>
+      <span className="cf-sub">per 1K verified views</span>
+    </div>
+
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:13,color:"var(--text-2)",flexWrap:"wrap"}}>
+        <span>Budget left</span>
+        <span><span className="num" style={{color:"var(--text)"}}>{fmtMoney(left)}</span> <span style={{color:"var(--text-3)"}}>of <span className="num">{fmtMoney(campaign.budget)}</span></span></span>
       </div>
+      <ProgressBar value={leftPct}/>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}} className="cf-meta">
+        <span><span className="num">{campaign.clipsAccepted}</span> clip{campaign.clipsAccepted===1?"":"s"} accepted</span>
+        <span><span className="num">{fmtViews(campaign.deliveredViews)}</span> verified views</span>
+      </div>
+    </div>
+
+    <div style={{display:"flex",gap:8}}>
+      {!isCreator&&<Btn full onClick={()=>router.push("/studio")} disabled={!open}><Scissors {...ic}/>Open Farm</Btn>}
+      {!isCreator&&<Btn full primary={!quiet} onClick={()=>onSubmit?.(campaign)} disabled={!open}><Upload {...ic}/>Submit clip</Btn>}
+      {isCreator&&<Btn full onClick={()=>onManage?.(campaign)}><Settings2 {...ic}/>Manage</Btn>}
     </div>
   </div>);
 }

@@ -1,32 +1,64 @@
 "use client";
 import {useEffect,useState} from "react";
-import {useSession} from "next-auth/react";
+import {Clock} from "lucide-react";
 import AppShell from "@/components/AppShell";
-import CampaignCard from "@/components/CampaignCard";
-import {MetricCard,Badge,Btn,fmtViews,fmtMoney,pct,ProgressBar,Avatar} from "@/components/ui";
-import type {Campaign,Clip} from "@/lib/mockData";
+import {PageHeader,SectionTitle,EmptyState,MetricCard,Skeleton,fmtViews,fmtMoney} from "@/components/ui";
+import {Page,StatusBadge,ErrorState,ListSkeleton,LinkBtn,getJSON,ic} from "@/components/PageKit";
+import {CPM,type Clip} from "@/lib/mockData";
+import {SITE} from "@/lib/site";
+
 export default function EarningsPage(){
-  const [clips,setClips]=useState<Clip[]>([]);
-  useEffect(()=>{fetch("/api/clips").then(r=>r.json()).then(setClips);},[]);
-  const paid=clips.filter(c=>c.status==="paid");
+  const [clips,setClips]=useState<Clip[]|null>(null);
+  const [error,setError]=useState<string|null>(null);
+  function load(){setError(null);setClips(null);getJSON<Clip[]>("/api/clips").then(setClips).catch(e=>setError(e.message));}
+  useEffect(load,[]); // eslint-disable-line react-hooks/exhaustive-deps
+  const all=clips||[];
+  const paid=all.filter(c=>c.status==="paid");
   const totalEarned=paid.reduce((a,c)=>a+c.earned,0);
+  const pending=all.filter(c=>c.status==="pending").reduce((a,c)=>a+(c.estimate??c.earned),0);
   return(<AppShell>
-    <div style={{maxWidth:700,margin:"0 auto"}}>
-      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:700}}>Earnings</div><div style={{fontSize:13,color:"var(--text2)",marginTop:3}}>$0.50 per 1,000 views</div></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
-        <MetricCard label="Total earned" value={fmtMoney(totalEarned)} sub="all time"/>
-        <MetricCard label="Pending" value={fmtMoney(clips.filter(c=>c.status==="pending").reduce((a,c)=>a+c.earned,0))} sub="awaiting approval"/>
-        <MetricCard label="Clips paid" value={String(paid.length)} sub="approved"/>
-        <MetricCard label="Total views" value={fmtViews(paid.reduce((a,c)=>a+c.views,0))} sub="on paid clips"/>
+    <Page>
+      <PageHeader title="Money" sub={`Every contract pays $${(SITE.rateCents/100).toFixed(2)} per 1,000 verified views. You keep 100%.`}/>
+
+      {error&&<div style={{marginBottom:16}}><ErrorState title="Couldn't load your money" message={error} onRetry={load}/></div>}
+
+      <div className="cf-card" style={{padding:20}}>
+        <div style={{display:"flex",gap:32,flexWrap:"wrap"}}>
+          <div style={{minWidth:0}}>
+            <div className="cf-label">Approved</div>
+            {clips?<div className="num money" style={{fontSize:40,fontWeight:500,lineHeight:1.15}}>{fmtMoney(totalEarned)}</div>:<div style={{marginTop:8}}><Skeleton h={40} w={180}/></div>}
+          </div>
+          <div style={{minWidth:0}}>
+            <div className="cf-label">Pending</div>
+            {clips?<div className="num money" style={{fontSize:40,fontWeight:500,lineHeight:1.15}}>{fmtMoney(pending)}</div>:<div style={{marginTop:8}}><Skeleton h={40} w={140}/></div>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start",marginTop:16,paddingTop:16,borderTop:"1px solid var(--line)"}} className="cf-sub">
+          <Clock {...ic} style={{flexShrink:0,marginTop:3,color:"var(--text-3)"}}/>
+          <span>Earnings wait 7 days for view checks, then pay out Fridays.</span>
+        </div>
       </div>
-      <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>Paid clips</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {paid.map(clip=>(<div key={clip.id} style={{background:"var(--bg1)",borderRadius:12,border:"1px solid var(--border)",padding:"13px 14px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{clip.title}</div><div style={{fontSize:11,color:"var(--text2)",marginTop:2}}>{fmtViews(clip.views)} views · {clip.date}</div></div>
-          <div style={{fontSize:16,fontWeight:700,color:"var(--green-text)",flexShrink:0}}>{fmtMoney(clip.earned)}</div>
+
+      <div className="cf-metrics" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginTop:12}}>
+        <MetricCard label="Clips paid" value={clips?String(paid.length):"–"}/>
+        <MetricCard label="Verified views" value={clips?fmtViews(paid.reduce((a,c)=>a+c.views,0)):"–"} sub="On paid clips"/>
+      </div>
+
+      <SectionTitle>Approved clips</SectionTitle>
+      {!clips&&!error&&<ListSkeleton rows={3} height={56}/>}
+      {clips&&paid.length===0&&<EmptyState title="No payouts yet" body="Once a clip clears its 7-day view check, it shows up here." action={<LinkBtn href="/studio" primary>Farm a VOD</LinkBtn>}/>}
+      {paid.length>0&&<div className="cf-card cf-rows">
+        {paid.map(clip=>(<div key={clip.id} className="cf-row">
+          <div style={{flex:1,minWidth:0}}>
+            <div className="cf-ellipsis" style={{fontSize:14,fontWeight:500}}>{clip.title}</div>
+            <div className="cf-meta" style={{marginTop:2}}><span className="num">{fmtViews(clip.views)}</span> views · {clip.date}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <span className="num money" style={{fontSize:16,fontWeight:500}}>{fmtMoney(clip.earned)}</span>
+            <StatusBadge status={clip.status}/>
+          </div>
         </div>))}
-        {paid.length===0&&<div style={{padding:28,textAlign:"center",fontSize:14,color:"var(--text2)",background:"var(--bg1)",borderRadius:14,border:"1px solid var(--border)"}}>No paid clips yet</div>}
-      </div>
-    </div>
+      </div>}
+    </Page>
   </AppShell>);
 }

@@ -1,42 +1,94 @@
 "use client";
 import {useEffect,useState} from "react";
 import {useSession} from "next-auth/react";
+import {Scissors,CheckCircle2,UserRound} from "lucide-react";
+import SubmitClipModal from "@/components/SubmitClipModal";
 import AppShell from "@/components/AppShell";
 import CampaignCard from "@/components/CampaignCard";
-import {MetricCard,Badge,Btn,fmtViews,fmtMoney,pct,ProgressBar,Avatar} from "@/components/ui";
+import {MetricCard,PageHeader,SectionTitle,EmptyState,Skeleton,fmtViews,fmtMoney} from "@/components/ui";
+import {Page,StatusBadge,ErrorState,ListSkeleton,LinkBtn,Toast,getJSON,ic} from "@/components/PageKit";
 import type {Campaign,Clip} from "@/lib/mockData";
+
 export default function Dashboard(){
   const {data:session}=useSession();
-  const [campaigns,setCampaigns]=useState<Campaign[]>([]);
-  const [clips,setClips]=useState<Clip[]>([]);
+  const [campaigns,setCampaigns]=useState<Campaign[]|null>(null);
+  const [clips,setClips]=useState<Clip[]|null>(null);
+  const [error,setError]=useState<string|null>(null);
   const [submitFor,setSubmitFor]=useState<Campaign|null>(null);
-  useEffect(()=>{fetch("/api/campaigns").then(r=>r.json()).then(setCampaigns);fetch("/api/clips").then(r=>r.json()).then(setClips);},[]);
-  const myClips=clips;
-  const myEarnings=myClips.filter(c=>c.status==="paid").reduce((a,c)=>a+c.earned,0);
+  const [toast,setToast]=useState<string|null>(null);
+  const [profileDone,setProfileDone]=useState(true);
+  useEffect(()=>{fetch("/api/account/profile").then(r=>r.ok?r.json():null).then(p=>{if(p)setProfileDone(!!p.complete);}).catch(()=>{});},[]);
+  const [tiktokRequired,setTiktokRequired]=useState(false);
+  useEffect(()=>{fetch("/api/auth/providers").then(r=>r.json()).then(p=>setTiktokRequired(!!p.tiktok)).catch(()=>{});},[]);
+  const tiktokConnected=!!(session?.user as any)?.tiktokConnected;
+  function load(){
+    setError(null);setCampaigns(null);setClips(null);
+    getJSON<Campaign[]>("/api/campaigns").then(setCampaigns).catch(e=>setError(e.message));
+    getJSON<Clip[]>("/api/clips").then(setClips).catch(e=>setError(e.message));
+  }
+  useEffect(load,[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const myClips=clips||[];
+  const paid=myClips.filter(c=>c.status==="paid").reduce((a,c)=>a+c.earned,0);
+  const pending=myClips.filter(c=>c.status==="pending").reduce((a,c)=>a+(c.estimate??c.earned),0);
+  const open=(campaigns||[]).filter(c=>c.status==="open");
+  const first=session?.user?.name?.split(" ")[0];
   return(<AppShell>
-    <div style={{maxWidth:700,margin:"0 auto"}}>
-      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:700}}>Dashboard</div><div style={{fontSize:13,color:"var(--text2)",marginTop:3}}>Welcome back, {session?.user?.name?.split(" ")[0]||"Clipper"}</div></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
-        <MetricCard label="Total views" value={fmtViews(myClips.reduce((a,c)=>a+c.views,0))} sub="all clips"/>
-        <MetricCard label="Earned" value={fmtMoney(myEarnings)} sub="all time"/>
-        <MetricCard label="Open campaigns" value={String(campaigns.filter(c=>c.status==="open").length)} sub="accepting clips"/>
-        <MetricCard label="Approved" value={String(myClips.filter(c=>c.status==="paid").length)} sub={`${myClips.filter(c=>c.status==="pending").length} pending`}/>
+    <Page>
+      <PageHeader title="Home" sub={first?`Welcome back, ${first}.`:"Welcome back."}/>
+
+      {error&&<div style={{marginBottom:16}}><ErrorState title="Couldn't load your home page" message={error} onRetry={load}/></div>}
+
+      {clips?(
+        <div className="cf-metrics odd">
+          <MetricCard label="Pending" value={fmtMoney(pending)} sub="Waiting on view checks" money/>
+          <MetricCard label="Approved" value={fmtMoney(paid)} sub="Earned, waiting for payout" money/>
+          <MetricCard label="Total views" value={fmtViews(myClips.reduce((a,c)=>a+c.views,0))} sub={`Across ${myClips.length} clip${myClips.length===1?"":"s"}`}/>
+        </div>
+      ):!error&&(
+        <div className="cf-metrics odd">{[0,1,2].map(i=><div key={i} className="cf-card" style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}><Skeleton h={12} w="40%"/><Skeleton h={22} w="70%"/></div>)}</div>
+      )}
+
+      {!profileDone&&<div className="cf-card cf-keep" style={{marginTop:16,borderColor:"var(--warn)"}}>
+        <div style={{minWidth:0,flex:"1 1 260px"}}>
+          <div style={{fontSize:16,fontWeight:600}}>Finish your profile</div>
+          <div className="cf-sub" style={{marginTop:2}}>Add a username and your TikTok handle so you can submit clips and get paid.</div>
+        </div>
+        <LinkBtn href="/settings"><UserRound {...ic}/>Finish profile</LinkBtn>
+      </div>}
+
+      <div className="cf-card cf-keep" style={{marginTop:16}}>
+        <div style={{minWidth:0,flex:"1 1 260px"}}>
+          <div style={{fontSize:16,fontWeight:600}}>Keep going</div>
+          <div className="cf-sub" style={{marginTop:2}}>Pick a VOD, let the Farm find the best moments, and cut your next clip.</div>
+        </div>
+        <LinkBtn href="/studio" primary><Scissors {...ic}/>Farm a VOD</LinkBtn>
       </div>
-      <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>Open campaigns</div>
-      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
-        {campaigns.filter(c=>c.status==="open").map(c=>(<CampaignCard key={c.id} campaign={c} onSubmit={setSubmitFor}/>))}
-      </div>
-      <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>Recent clips</div>
-      <div style={{background:"var(--bg1)",borderRadius:14,border:"1px solid var(--border)",overflow:"hidden"}}>
-        {myClips.length===0&&<div style={{padding:28,textAlign:"center",fontSize:13,color:"var(--text2)"}}>No clips yet — browse a campaign</div>}
-        {myClips.slice(0,5).map((clip,i)=>(<div key={clip.id} style={{padding:"13px 14px",borderBottom:i<4?"1px solid var(--border)":"none",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{clip.title}</div><div style={{fontSize:11,color:"var(--text2)",marginTop:2}}>{fmtViews(clip.views)} views · {clip.date}</div></div>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            <span style={{fontSize:13,fontWeight:600,color:clip.earned>0?"var(--green-text)":"var(--text2)"}}>{fmtMoney(clip.earned)}</span>
-            <Badge type={clip.status==="paid"?"green":clip.status==="pending"?"amber":"red"}>{clip.status}</Badge>
+
+      <SectionTitle action={<LinkBtn href="/campaigns" ghost small>See all</LinkBtn>}>Open contracts</SectionTitle>
+      {!campaigns&&!error&&<ListSkeleton rows={2} height={180} card/>}
+      {campaigns&&open.length===0&&<EmptyState title="No open contracts right now" body="New contracts show up here as soon as a streamer posts one." action={<LinkBtn href="/campaigns">See all contracts</LinkBtn>}/>}
+      {open.length>0&&<div className="cf-grid-cards">
+        {open.map(c=>(<CampaignCard key={c.id} campaign={c} onSubmit={setSubmitFor} quiet/>))}
+      </div>}
+
+      <SectionTitle action={<LinkBtn href="/my-clips" ghost small>Library</LinkBtn>}>Recent clips</SectionTitle>
+      {!clips&&!error&&<ListSkeleton rows={3} height={56}/>}
+      {clips&&myClips.length===0&&<EmptyState title="No clips yet" body="Submit a clip to a contract and it shows up here." action={<LinkBtn href="/campaigns">Browse contracts</LinkBtn>}/>}
+      {myClips.length>0&&<div className="cf-card cf-rows">
+        {myClips.slice(0,5).map(clip=>(<div key={clip.id} className="cf-row">
+          <div style={{flex:1,minWidth:0}}>
+            <div className="cf-ellipsis" style={{fontSize:14,fontWeight:500}}>{clip.title}</div>
+            <div className="cf-meta" style={{marginTop:2}}><span className="num">{fmtViews(clip.views)}</span> views · {clip.date}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <span className="num" style={{fontSize:14,fontWeight:500,color:clip.earned>0?"var(--money)":"var(--text-3)"}}>{fmtMoney(clip.earned)}</span>
+            <StatusBadge status={clip.status}/>
           </div>
         </div>))}
-      </div>
-    </div>
+      </div>}
+      {toast&&<Toast><CheckCircle2 {...ic} style={{color:"var(--brand-400)",flexShrink:0}}/>{toast}</Toast>}
+    </Page>
+    {submitFor&&<SubmitClipModal campaign={submitFor} tiktokConnected={tiktokConnected} tiktokRequired={tiktokRequired} onClose={()=>setSubmitFor(null)} onSubmitted={()=>{setSubmitFor(null);setToast("Clip submitted. Track it in your Library.");setTimeout(()=>setToast(null),3500);load();}}/>}
   </AppShell>);
 }

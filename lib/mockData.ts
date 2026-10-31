@@ -1,8 +1,8 @@
 export type Vod = { id:string; title:string; duration:string; date:string; url:string; };
-export type Campaign = { id:string; streamer:string; initials:string; twitchUser:string; budget:number; targetViews:number; deliveredViews:number; budgetUsed:number; clipsAccepted:number; status:"open"|"upcoming"|"closed"; vods:Vod[]; };
-export type Clip = { id:string; campaignId:string; title:string; platform:string; url:string; views:number; earned:number; status:"pending"|"paid"|"rejected"; submittedBy:string; submittedById:string; date:string; tiktokVideoId?:string; coverUrl?:string; viewsSyncedAt?:string; };
+export type Campaign = { id:string; streamer:string; initials:string; twitchUser:string; budget:number; targetViews:number; deliveredViews:number; budgetUsed:number; clipsAccepted:number; status:"open"|"upcoming"|"closed"; vods:Vod[]; /** Dollars per 1K verified views (DB contracts). */ rate?:number; /** False until the budget has been paid. */ funded?:boolean; };
+export type Clip = { id:string; campaignId:string; title:string; platform:string; url:string; views:number; earned:number; status:"pending"|"paid"|"rejected"; submittedBy:string; submittedById:string; date:string; tiktokVideoId?:string; coverUrl?:string; viewsSyncedAt?:string; /** Contract rate ($/1K) and, for pending clips, what the current views would pay. */ rate?:number; estimate?:number; };
 /** Payout rate: dollars per 1,000 verified views. */
-export const CPM = 0.5;
+export const CPM = 1.0;
 export const payoutFor = (views:number) => (views/1000)*CPM;
 export const campaigns: Campaign[] = [
   { id:"c1",streamer:"DLOU",initials:"DL",twitchUser:"dlou",budget:750,targetViews:1500000,deliveredViews:1100000,budgetUsed:573.43,clipsAccepted:37,status:"open",

@@ -17,16 +17,19 @@
     "@aws-sdk/s3-request-presigner": "^3.1144.0",
     "@napi-rs/canvas": "^1.0.9",
     "drizzle-orm": "^0.45.3",
+    "lucide-react": "^0.468.0",
     "next": "^15.5.15",
     "next-auth": "^5.0.0-beta.25",
     "postgres": "^3.4.9",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zustand": "^5.0.15",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",

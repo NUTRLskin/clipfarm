@@ -22,9 +22,15 @@ The complete app is the `feat/streamer-side` branch of the git bundle `C:\Users\
 1. `cd C:\Users\visio\Projects\clipfarm-local-db && npm start` (database)
 2. `npx tsx --env-file=.env scripts/migrate.ts` (only after schema changes; tsx doesn't read .env on its own)
 3. Web: the `clipfarm-web` preview config in the vault's `.claude/launch.json` (or `npm run dev`) → http://localhost:3000
-4. Log in with the demo buttons (no Twitch/TikTok keys in `.env`). Demo data comes from `lib/mockData.ts`.
+4. Sign up with email + password, or use the demo buttons (shown only when `ALLOW_DEMO_LOGIN=1`; never set it in production).
 - Worker (`npx tsx --env-file=.env worker/index.ts`) needs ffmpeg + yt-dlp on PATH — not installed yet, so VOD import/render/captions don't run locally.
-- `.env` holds a generated AUTH_SECRET and the local DATABASE_URL only. Never commit it.
+- `.env` holds secrets (AUTH_SECRET, DATABASE_URL). Never commit it.
+
+## Accounts and data (added 2026-10-31)
+- Accounts, contracts and clips live in Postgres (`users`, `contracts`, `clips`, `password_resets`; migration `drizzle/0004_accounts.sql`). `lib/mockData.ts` now only supplies types and the fake VOD list used when Twitch keys are missing.
+- Every table has row level security on with no policies, so Supabase's public Data API can't read them. The app connects as the owner and bypasses RLS. Any new table must do the same.
+- Money is integer cents. Approving a clip locks the contract row and caps the payout at the budget left.
+- `scripts/db-check.ts` lists tables, lock status and row counts. `scripts/e2e-accounts.sh` runs 56 checks against a running app (needs `ALLOW_DEMO_LOGIN=1`). `scripts/cleanup-test-data.ts --yes` removes test and demo data.
 
 ## Rules
 - Web pages must work on phone, tablet and desktop; check all three before calling anything done.

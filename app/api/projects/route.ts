@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { campaigns } from "@/lib/mockData";
+import { getContract } from "@/lib/contracts";
 import { emptyTimeline } from "@/lib/editor/presets";
 import { getChannel } from "@/lib/twitch";
 import { requireUser, route, HttpError } from "@/lib/studio";
@@ -14,10 +14,12 @@ export const GET = route(async () => {
     twitchLogin: schema.projects.twitchLogin, twitchDisplay: schema.projects.twitchDisplay, twitchAvatar: schema.projects.twitchAvatar,
     updatedAt: schema.projects.updatedAt, exportAssetId: schema.projects.exportAssetId,
   }).from(schema.projects).where(eq(schema.projects.ownerId, user.id)).orderBy(desc(schema.projects.updatedAt)).limit(100);
+  const ids = [...new Set(rows.map(r => r.campaignId).filter(Boolean))] as string[];
+  const names = new Map((ids.length ? await getDb().select({ id: schema.contracts.id, name: schema.contracts.streamerName }).from(schema.contracts).where(inArray(schema.contracts.id, ids)) : []).map(c => [c.id, c.name]));
   return NextResponse.json(rows.map(r => ({
     ...r,
-    streamer: r.twitchDisplay || campaigns.find(c => c.id === r.campaignId)?.streamer || "",
-    campaign: campaigns.find(c => c.id === r.campaignId)?.streamer || null,
+    streamer: r.twitchDisplay || (r.campaignId && names.get(r.campaignId)) || "",
+    campaign: (r.campaignId && names.get(r.campaignId)) || null,
   })));
 });
 
@@ -34,10 +36,10 @@ export const POST = route(async (req: Request) => {
   let campaignId: string | null = null, twitchLogin: string | null = null, twitchDisplay: string | null = null, twitchAvatar: string | null = null;
 
   if (body.campaignId) {
-    const c = campaigns.find(c => c.id === body.campaignId);
-    if (!c) throw new HttpError(404, "Campaign not found");
-    if (c.status !== "open") throw new HttpError(400, "This campaign isn't accepting clips");
-    campaignId = c.id; twitchLogin = c.twitchUser; twitchDisplay = c.streamer;
+    const c = await getContract(String(body.campaignId));
+    if (!c) throw new HttpError(404, "Contract not found");
+    if (c.status !== "open") throw new HttpError(400, "This contract isn't accepting clips");
+    campaignId = c.id; twitchLogin = c.twitchLogin; twitchDisplay = c.streamerName;
   } else if (body.twitchLogin) {
     let ch;
     try { ch = await getChannel(String(body.twitchLogin)); }

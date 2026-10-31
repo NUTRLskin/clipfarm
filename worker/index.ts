@@ -7,6 +7,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import postgres from "postgres";
+import { pgOptions } from "../lib/db";
 import { claimJob, failJob, finishJob, heartbeat, requeueStale, setProgress } from "../lib/jobs";
 import type { JobRow } from "../lib/db/schema";
 import { registerFonts } from "./fonts";
@@ -74,7 +75,9 @@ async function main() {
   await updateYtDlp();
   await requeueStale(10);
   // Instant wake-ups via LISTEN/NOTIFY, with polling as a safety net.
-  const listener = postgres(process.env.DATABASE_URL!, { max: 1 });
+  // Same TLS settings as the app; LISTEN needs a session connection (not Supabase's 6543 pooler).
+  const listenUrl = process.env.DATABASE_URL!.replace(/(pooler\.supabase\.com):6543\//, "$1:5432/");
+  const listener = postgres(listenUrl, { ...pgOptions(listenUrl, 1) });
   await listener.listen("clipfarm_jobs", () => { pump(); });
   setInterval(() => { pump(); }, 5000);
   setInterval(() => { requeueStale(10).catch(() => {}); }, 2 * 60_000);

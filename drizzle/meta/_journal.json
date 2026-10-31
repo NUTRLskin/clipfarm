@@ -29,6 +29,27 @@
       "when": 1790810098356,
       "tag": "0003_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793466667629,
+      "tag": "0004_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793467692642,
+      "tag": "0005_session_version_fees",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793473149285,
+      "tag": "0006_terms_rate_admin",
+      "breakpoints": true
     }
   ]
 }

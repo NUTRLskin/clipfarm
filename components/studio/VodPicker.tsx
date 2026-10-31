@@ -6,7 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { fmtTime } from "@/lib/editor/timeline";
 import type { VodInfo } from "@/lib/twitch";
 import type { Moment } from "@/lib/moments";
+import { ArrowLeft, ExternalLink, X } from "lucide-react";
 import { Spinner } from "./controls";
+import { Skeleton, Advanced } from "@/components/ui";
 import { Filmstrip, Loudness, Moments, useAnalysis } from "./VodHighlights";
 
 declare global { interface Window { Twitch?: any } }
@@ -32,12 +34,14 @@ export default function VodPicker({ login, streamer, initialVodId, onClose, onIm
   const hostRef = useRef<HTMLDivElement>(null);
   const analysis = useAnalysis(vod?.id ?? null);
   const [moment, setMoment] = useState<Moment | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    setError(null);
     const q = initialVodId ? `id=${encodeURIComponent(initialVodId)}` : `login=${encodeURIComponent(login)}`;
     fetch(`/api/twitch/vods?${q}`).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setVods(j.vods); if (initialVodId && j.vods[0]) setVod(j.vods[0]); })
       .catch(e => setError(e.message));
-  }, [login, initialVodId]);
+  }, [login, initialVodId, attempt]);
 
   // Twitch embed player.
   useEffect(() => {
@@ -80,29 +84,33 @@ export default function VodPicker({ login, streamer, initialVodId, onClose, onIm
     <div className="st-modal-bg" onClick={onClose}>
       <div className="st-modal wide" onClick={e => e.stopPropagation()}>
         <div className="st-modal-head">
-          <div><b>{streamer}&apos;s VODs</b><div className="st-hint">Scrub to the moment, mark in and out, and we&apos;ll pull just that range at full quality.</div></div>
-          <button className="st-icon" onClick={onClose}>✕</button>
+          <div style={{ minWidth: 0 }}><div className="cf-h2" style={{ fontSize: 18 }}>{streamer}&apos;s VODs</div><div className="cf-sub" style={{ marginTop: 2 }}>Pick a top moment or set a start and end. We pull just that part at full quality.</div></div>
+          <button className="cf-btn cf-btn--ghost cf-btn--sm" onClick={onClose} aria-label="Close" style={{ padding: "0 8px", flexShrink: 0 }}><X size={16} strokeWidth={1.75} /></button>
         </div>
         {!vod ? (
           <div className="st-vod-list">
-            {error && <div className="st-err">{error}</div>}
-            {!vods && !error && <div className="st-hint"><Spinner /> Loading VODs…</div>}
-            {vods?.length === 0 && <div className="st-empty">No past broadcasts found. The streamer may have VOD saving turned off, or their VODs have expired (Twitch keeps them 7–60 days).</div>}
+            {error && <div className="cf-card" role="alert" style={{ padding: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", borderColor: "rgba(248,113,113,.25)" }}>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600 }}>Couldn&apos;t load VODs</div><div className="cf-sub" style={{ wordBreak: "break-word" }}>{error}</div></div>
+              <button className="cf-btn cf-btn--sm" onClick={() => setAttempt(a => a + 1)}>Retry</button></div>}
+            {!vods && !error && Array.from({ length: 4 }, (_, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: 10 }}><Skeleton h={54} w={96} r={8} /><div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}><Skeleton h={13} w="70%" /><Skeleton h={11} w="40%" /></div></div>
+            ))}
+            {vods?.length === 0 && <div className="cf-card" style={{ padding: "28px 20px", textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 600 }}>No past broadcasts</div><div className="cf-sub" style={{ marginTop: 4 }}>This streamer may have VOD saving off, or their VODs expired (Twitch keeps them 7–60 days).</div><button className="cf-btn" style={{ marginTop: 14 }} onClick={onClose}>Pick another streamer</button></div>}
             {vods?.map(v => (
               <button key={v.id} className="st-vod" onClick={() => setVod(v)}>
                 <div className="st-vod-thumb" style={v.thumbnail ? { backgroundImage: `url(${v.thumbnail})` } : {}} />
-                <div><div className="st-vod-title">{v.title}</div><div className="st-hint">{fmtTime(v.duration)} · {new Date(v.createdAt).toLocaleDateString()}{v.viewCount ? ` · ${v.viewCount.toLocaleString()} views` : ""}</div></div>
+                <div style={{ minWidth: 0 }}><div className="st-vod-title">{v.title}</div><div className="cf-meta"><span className="num">{fmtTime(v.duration)}</span> · {new Date(v.createdAt).toLocaleDateString()}{v.viewCount ? <> · <span className="num">{v.viewCount.toLocaleString()}</span> views</> : ""}</div></div>
               </button>
             ))}
           </div>
         ) : (
           <div className="st-vod-editor">
-            <button className="st-link" onClick={() => { setVod(null); if (initialVodId) fetch(`/api/twitch/vods?login=${encodeURIComponent(login)}`).then(r => r.json()).then(j => j.vods && setVods(j.vods)).catch(() => {}); }}>← All VODs</button>
-            <div className="st-vod-title" style={{ margin: "6px 0" }}>{vod.title}</div>
+            <button className="cf-link" onClick={() => { setVod(null); if (initialVodId) fetch(`/api/twitch/vods?login=${encodeURIComponent(login)}`).then(r => r.json()).then(j => j.vods && setVods(j.vods)).catch(() => {}); }}><ArrowLeft size={14} strokeWidth={1.75} />All VODs</button>
+            <div className="st-vod-title" style={{ margin: "8px 0", fontSize: 15 }}>{vod.title}</div>
             <div className="st-player" ref={hostRef} />
             {playerOk === false && (
-              <div className="st-hint" style={{ marginTop: 6 }}>Player couldn&apos;t load here (Twitch embeds need an HTTPS site). You can still type times below, or open the VOD on Twitch:{" "}
-                <a href={`${vod.url}?t=${Math.floor(cur)}s`} target="_blank" rel="noreferrer" className="st-link">twitch.tv ↗</a></div>
+              <div className="cf-sub" style={{ marginTop: 8 }}>The player can&apos;t load here (Twitch embeds need an HTTPS site). You can still type times under Fine-tune position, or{" "}
+                <a href={`${vod.url}?t=${Math.floor(cur)}s`} target="_blank" rel="noreferrer" className="cf-link">open it on Twitch<ExternalLink size={13} strokeWidth={1.75} /></a></div>
             )}
             <Filmstrip analysis={analysis} duration={vod.duration} cur={cur} onSeek={seek} />
             <div className="st-scrub">
@@ -118,26 +126,30 @@ export default function VodPicker({ login, streamer, initialVodId, onClose, onIm
               </div>
             </div>
             <Moments analysis={analysis} duration={vod.duration} active={moment} onUse={useMoment} />
-            <div className="st-scrub-row">
-              <div className="st-btn-row">
-                {[-600, -60, -10, 10, 60, 600].map(d => <button key={d} className="st-btn small" onClick={() => seek(cur + d)}>{d > 0 ? "+" : "−"}{Math.abs(d) >= 60 ? `${Math.abs(d) / 60}m` : `${Math.abs(d)}s`}</button>)}
-              </div>
-              <TimeInput value={cur} max={vod.duration} onChange={seek} />
-            </div>
             <div className="st-inout">
               <div className={inT != null ? "set" : ""}>
-                <button className="st-btn" onClick={() => { setIn(Math.floor(cur)); if (outT != null && outT <= cur) setOut(null); }}>[ Mark in</button>
-                <span>{inT != null ? fmtTime(inT) : "—"}</span>
+                <button className="cf-btn cf-btn--sm" onClick={() => { setIn(Math.floor(cur)); if (outT != null && outT <= cur) setOut(null); }}>Set start</button>
+                <span>{inT != null ? fmtTime(inT) : "–"}</span>
               </div>
               <div className={outT != null ? "set" : ""}>
-                <button className="st-btn" onClick={() => setOut(Math.ceil(cur))} disabled={inT == null || cur <= inT}>Mark out ]</button>
-                <span>{outT != null ? fmtTime(outT) : "—"}</span>
+                <button className="cf-btn cf-btn--sm" onClick={() => setOut(Math.ceil(cur))} disabled={inT == null || cur <= inT}>Set end</button>
+                <span>{outT != null ? fmtTime(outT) : "–"}</span>
               </div>
-              <div className="st-hint">{len > 0 ? `${fmtTime(len)} selected` : "Mark a start and end point"}{len > MAX_MIN * 60 && <span className="st-err"> · max {MAX_MIN} min per import</span>}</div>
+              <div className="cf-meta">{len > 0 ? <><span className="num">{fmtTime(len)}</span> selected</> : "Set a start and an end"}{len > MAX_MIN * 60 && <span style={{ color: "var(--danger)" }}> · {MAX_MIN} min max per import</span>}</div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Advanced label="Fine-tune position">
+                <div className="st-scrub-row">
+                  <div className="st-btn-row">
+                    {[-600, -60, -10, 10, 60, 600].map(d => <button key={d} className="cf-btn cf-btn--sm num" onClick={() => seek(cur + d)}>{d > 0 ? "+" : "−"}{Math.abs(d) >= 60 ? `${Math.abs(d) / 60}m` : `${Math.abs(d)}s`}</button>)}
+                  </div>
+                  <TimeInput value={cur} max={vod.duration} onChange={seek} />
+                </div>
+              </Advanced>
             </div>
             <div className="st-btn-row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
-              <button className="st-btn" onClick={onClose}>Cancel</button>
-              <button className="st-btn primary" disabled={!valid || busy} onClick={go}>{busy ? <><Spinner /> Importing…</> : `Import ${len > 0 ? fmtTime(len) : "range"}`}</button>
+              <button className="cf-btn cf-btn--ghost" onClick={onClose}>Cancel</button>
+              <button className="cf-btn cf-btn--primary" disabled={!valid || busy} onClick={go}>{busy ? <><Spinner /> Importing…</> : len > 0 ? <>Import <span className="num">{fmtTime(len)}</span></> : "Import range"}</button>
             </div>
           </div>
         )}

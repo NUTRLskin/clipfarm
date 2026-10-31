@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { campaigns, clips } from "@/lib/mockData";
+import { clipView } from "@/lib/contracts";
 import { requireStreamer, route } from "@/lib/studio";
 
 /**
@@ -12,7 +12,8 @@ import { requireStreamer, route } from "@/lib/studio";
 export const GET = route(async () => {
   const me = await requireStreamer();
   const db = getDb();
-  const myCampaignIds = campaigns.filter(c => c.twitchUser === me.twitchLogin).map(c => c.id);
+  const myCampaignIds = (await db.select({ id: schema.contracts.id }).from(schema.contracts).where(eq(schema.contracts.streamerUserId, me.id))).map(c => c.id);
+  const clips = myCampaignIds.length ? (await db.select().from(schema.clips).where(inArray(schema.clips.contractId, myCampaignIds))).map(clipView) : [];
   const projects = await db.select().from(schema.projects)
     .where(myCampaignIds.length ? sql`${schema.projects.twitchLogin} = ${me.twitchLogin} or ${schema.projects.campaignId} in ${myCampaignIds}` : eq(schema.projects.twitchLogin, me.twitchLogin))
     .orderBy(desc(schema.projects.updatedAt)).limit(1000);

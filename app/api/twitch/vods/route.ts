@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { campaigns } from "@/lib/mockData";
+import { getContract } from "@/lib/contracts";
 import { getVod, listVods } from "@/lib/twitch";
 import { requireUser, route, HttpError } from "@/lib/studio";
 
@@ -19,9 +19,9 @@ export const GET = route(async (req: Request) => {
     }
     let login = q.get("login")?.trim().toLowerCase();
     if (!login && q.get("campaignId")) {
-      const c = campaigns.find(c => c.id === q.get("campaignId"));
-      if (!c) throw new HttpError(404, "Campaign not found");
-      login = c.twitchUser;
+      const c = await getContract(q.get("campaignId"));
+      if (!c) throw new HttpError(404, "Contract not found");
+      login = c.twitchLogin;
     }
     if (!login) throw new HttpError(400, "login is required");
     return NextResponse.json({ vods: await listVods(login), twitchUser: login });
