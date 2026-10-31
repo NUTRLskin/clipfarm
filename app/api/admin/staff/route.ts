@@ -36,7 +36,7 @@ async function newInvite(req: Request, staffId: string) {
   const token = randomBytes(32).toString("base64url");
   await getDb().insert(schema.staffInvites).values({ tokenHash: sha256(token), staffId, expiresAt: new Date(Date.now() + INVITE_HOURS * 3600_000) });
   // With the admin portal on its own domain (ADMIN_HOST), invites must open there, not on the app domain.
-  const base = process.env.ADMIN_HOST ? `https://${process.env.ADMIN_HOST}` : appUrl(req);
+  const base = (process.env.ADMIN_URL || (process.env.ADMIN_HOST ? `https://${process.env.ADMIN_HOST}` : appUrl(req))).replace(/\/+$/, "");
   return `${base}/admin/invite?token=${token}`;
 }
 
