@@ -25,6 +25,8 @@ export function middleware(req: NextRequest) {
       res.headers.set("X-Robots-Tag", "noindex, nofollow");
       return res;
     }
+    // The shared root layout's NextAuth client asks for an app session; staff have none here.
+    if (pathname === "/api/auth/session") return NextResponse.json({});
     const url = req.nextUrl.clone();
     url.pathname = "/admin";
     url.search = "";
