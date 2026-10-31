@@ -2,5 +2,8 @@
 builder = "nixpacks"
 [deploy]
 startCommand = "npm run start"
-healthcheckPath = "/"
+# A new deploy only replaces the running one after /api/health passes (app + database up), so a bad deploy never takes the site down.
+healthcheckPath = "/api/health"
+healthcheckTimeout = 180
 restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

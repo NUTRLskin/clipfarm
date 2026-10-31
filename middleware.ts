@@ -27,7 +27,11 @@ export function middleware(req: NextRequest) {
   if (!ADMIN_HOST) return NextResponse.next();
 
   if (host === ADMIN_HOST) {
-    if (isAdminPath(pathname)) return NextResponse.next();
+    if (isAdminPath(pathname)) {
+      const res = NextResponse.next();
+      res.headers.set("X-Robots-Tag", "noindex, nofollow");
+      return res;
+    }
     const url = req.nextUrl.clone();
     url.pathname = "/admin";
     url.search = "";
