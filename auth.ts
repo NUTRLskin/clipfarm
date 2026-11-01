@@ -38,9 +38,10 @@ if (dbConfigured()) {
 
 // Creators (streamers) sign in with Twitch.
 if (twitchConfigured) {
+  // Trimmed: a pasted key with a trailing newline makes the provider reject the client.
   providers.push(Twitch({
-    clientId: process.env.TWITCH_CLIENT_ID,
-    clientSecret: process.env.TWITCH_CLIENT_SECRET,
+    clientId: process.env.TWITCH_CLIENT_ID?.trim(),
+    clientSecret: process.env.TWITCH_CLIENT_SECRET?.trim(),
   }));
 }
 
@@ -49,8 +50,8 @@ if (twitchConfigured) {
 // Scopes are configurable so a TikTok app without Content Posting approved can still log in.
 if (tiktokConfigured()) {
   const base = TikTok({
-    clientId: process.env.TIKTOK_CLIENT_KEY,
-    clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+    clientId: process.env.TIKTOK_CLIENT_KEY?.trim(),
+    clientSecret: process.env.TIKTOK_CLIENT_SECRET?.trim(),
   }) as any;
   providers.push({
     ...base,

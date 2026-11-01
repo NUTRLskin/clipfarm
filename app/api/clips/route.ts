@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { clipView, getContract } from "@/lib/contracts";
 import { getUserById } from "@/lib/accounts";
 import { requireCurrentTerms } from "@/lib/terms";
-import { extractVideoId, getTikTokAccess, queryVideos } from "@/lib/tiktok";
+import { extractVideoId, getTikTokAccess, queryVideos, tiktokConfigured } from "@/lib/tiktok";
 import { requireClipper, requireUser, route, HttpError } from "@/lib/studio";
 
 /**
@@ -59,7 +59,7 @@ export const POST = route(async (req: Request) => {
     url = found.share_url || url;
     viewsSyncedAt = new Date();
   } else {
-    if (process.env.TIKTOK_CLIENT_KEY) throw new HttpError(403, "Connect your TikTok account to submit clips");
+    if (tiktokConfigured()) throw new HttpError(403, "Connect your TikTok account to submit clips");
     // Without TikTok connected, the link's @handle must match the handle on the clipper's profile.
     if (!user.tiktokHandle) throw new HttpError(400, "Add your TikTok handle to your profile first (Settings).");
     const handle = rawUrl.match(/tiktok\.com\/@([^/?#]+)/i)?.[1];

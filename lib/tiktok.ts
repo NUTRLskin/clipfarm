@@ -23,8 +23,12 @@ export type TikTokVideo = {
   create_time?: number;
 };
 
+/** Sandbox client keys start with "sb" and only let listed test users log in, so the public never sees that button. */
+const isSandboxKey = () => (process.env.TIKTOK_CLIENT_KEY || "").trim().startsWith("sb");
+
 export const tiktokConfigured = () =>
-  !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET);
+  !!(process.env.TIKTOK_CLIENT_KEY?.trim() && process.env.TIKTOK_CLIENT_SECRET?.trim()) &&
+  (!isSandboxKey() || process.env.TIKTOK_ALLOW_SANDBOX === "1");
 
 /** Pull the numeric video ID out of a TikTok URL. Resolves vm./vt. short links. */
 export async function extractVideoId(rawUrl: string): Promise<string | null> {
