@@ -1,5 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "crypto";
-import { AUTH_SECRET } from "../authSecret";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "crypto";import { AUTH_SECRET } from "../authSecret";
 
 /** Time-based one-time codes (RFC 6238: SHA-1, 30 seconds, 6 digits), as used by Google Authenticator, 1Password, Authy. */
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -24,7 +23,13 @@ export function base32Decode(s: string) {
   return Buffer.from(out);
 }
 
-export const newTotpSecret = () => base32Encode(randomBytes(20));
+/**
+ * The secret offered while someone sets up 2FA. Derived, not random, so every QR code shown before they finish
+ * is the same one: rescans, retries, a second tab or an earlier scan all still match. A 2FA reset bumps
+ * session_version, which gives a new secret.
+ */
+export const enrollSecret = (staffId: string, sessionVersion: number) =>
+  base32Encode(createHmac("sha256", AUTH_SECRET + ":staff-totp-enroll").update(`${staffId}:${sessionVersion}`).digest().subarray(0, 20));
 
 function codeAt(secret: string, step: number) {
   const msg = Buffer.alloc(8);

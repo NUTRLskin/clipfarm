@@ -8,7 +8,7 @@ import { route, HttpError } from "@/lib/studio";
 import {
   ADMIN_COOKIE, PENDING_COOKIE, SESSION_HOURS, audit, cookieOpts, getStaff, readToken, setupAllowedFrom, signToken, staffCount,
 } from "@/lib/admin/session";
-import { decryptSecret, encryptSecret, hashRecovery, newRecoveryCodes, newTotpSecret, otpauthUrl, verifyTotp } from "@/lib/admin/totp";
+import { decryptSecret, encryptSecret, enrollSecret, hashRecovery, newRecoveryCodes, otpauthUrl, verifyTotp } from "@/lib/admin/totp";
 import type { StaffRow } from "@/lib/db/schema";
 
 /**
@@ -21,7 +21,6 @@ import type { StaffRow } from "@/lib/db/schema";
  *   GET  invite    → ?token= → who the invite is for     POST invite { token, password } → next: "enroll"
  *   POST logout
  */
-const ENROLL_COOKIE = "cf_admin_enroll";
 
 function staffPasswordProblem(pw: unknown) {
   const s = String(pw ?? "");
@@ -52,7 +51,6 @@ async function pendingStaff() {
 function signIn(res: NextResponse, s: StaffRow) {
   res.cookies.set(ADMIN_COOKIE, signToken([s.id, s.sessionVersion], SESSION_HOURS * 3600_000, "admin"), cookieOpts(SESSION_HOURS * 3600));
   res.cookies.set(PENDING_COOKIE, "", cookieOpts(0));
-  res.cookies.set(ENROLL_COOKIE, "", cookieOpts(0));
   return res;
 }
 
@@ -74,13 +72,10 @@ export const GET = route(async (req: Request, ctx: { params: Promise<{ step: str
   if (step === "enroll") {
     const s = await pendingStaff();
     if (s.totpSecretEnc) throw new HttpError(400, "Two-step sign-in is already set up.");
-    const secret = newTotpSecret();
-    const res = NextResponse.json({
+    const secret = enrollSecret(s.id, s.sessionVersion);
+    return NextResponse.json({
       secret, qr: await QRCode.toDataURL(otpauthUrl(secret, s.email), { margin: 1, width: 240, color: { dark: "#0A0A0C", light: "#FFFFFF" } }),
     });
-    // GCM-encrypted and bound to this staff id, so it can't be swapped or read from the browser.
-    res.cookies.set(ENROLL_COOKIE, encryptSecret(`${s.id}:${secret}`), cookieOpts(600));
-    return res;
   }
 
   if (step === "invite") {
@@ -143,12 +138,9 @@ export const POST = route(async (req: Request, ctx: { params: Promise<{ step: st
   if (step === "enroll") {
     const s = await pendingStaff();
     if (s.totpSecretEnc) throw new HttpError(400, "Two-step sign-in is already set up.");
-    const jar = await cookies();
-    let secret = "";
-    try { const [id, sec] = decryptSecret(jar.get(ENROLL_COOKIE)?.value || "").split(":"); if (id === s.id) secret = sec; } catch { /* fall through */ }
-    if (!secret) throw new HttpError(400, "Scan the QR code again.");
+    const secret = enrollSecret(s.id, s.sessionVersion);
     const stepNo = verifyTotp(secret, b.code, 0);
-    if (stepNo == null) throw new HttpError(400, "That code didn't match. Check the time on your phone and try the newest code.");
+    if (stepNo == null) throw new HttpError(400, "That code didn't match. In your authenticator app, delete any older Clip Farm Admin entries, scan this QR code again, and type the newest code. Your phone's time should be set to automatic.");
     const codes = newRecoveryCodes();
     const [row] = await db.update(schema.staffUsers).set({
       totpSecretEnc: encryptSecret(secret), totpLastStep: stepNo, recoveryHashes: codes.map(hashRecovery),

@@ -61,6 +61,10 @@ async function main() {
   r = await owner.req("GET", "/api/admin/auth/enroll");
   const secret: string = r.body.secret;
   r.body.qr?.startsWith("data:image/png") ? ok("QR code returned") : bad("QR code", r.body);
+  expect("same QR on a second look (rescans, extra tabs)", (await owner.req("GET", "/api/admin/auth/enroll")).body.secret, secret);
+  const again = new Jar();
+  await again.req("POST", "/api/admin/auth/login", { email: ownerEmail, password: PW });
+  expect("same QR after signing in again", (await again.req("GET", "/api/admin/auth/enroll")).body.secret, secret);
   expect("wrong code refused", (await owner.req("POST", "/api/admin/auth/enroll", { code: "000000" })).status, 400);
   r = await owner.req("POST", "/api/admin/auth/enroll", { code: totp(secret) });
   expect("2FA turned on with 10 recovery codes", r.body.recoveryCodes?.length, 10, r.body);
